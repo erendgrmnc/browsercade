@@ -1,0 +1,32 @@
+{
+  "name": "chess3d-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "3D chess in the browser — play vs a hand-written AI, or online (WebSocket).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "chess.js": "^1.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.184.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.6",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.0"
+  }
+}
