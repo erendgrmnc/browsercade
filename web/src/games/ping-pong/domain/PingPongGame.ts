@@ -8,7 +8,7 @@
 import { BALL, PADDLE, PHYSICS, RACKET, RULES, SHOT, TABLE } from "../config";
 import { AiController } from "./AiController";
 import { clamp, lerp } from "@/shared/math";
-import { addScaled, dot, integrate, length, normalize, scale, sub, vec3, type Vec3 } from "@/shared/vec3";
+import { integrate, vec3, type Vec3 } from "@/shared/vec3";
 import type { Phase, Score, Side } from "./types";
 
 type Events = {
@@ -24,10 +24,8 @@ export class PingPongGame {
   playerX = 0;
   aiX = 0;
   playerTargetX = 0;
-  playerZ: number = PADDLE.playerZ; // live forward/back depth of the racket
-  playerTargetZ: number = PADDLE.playerZ; // where the mouse wants the racket (toward/away from the net)
-  playerY: number = PADDLE.hoverY; // live racket height (auto-reaches the ball)
-  racketVel: Vec3 = vec3(); // racket velocity this frame — swing power + face yaw
+  readonly playerZ: number = PADDLE.playerZ; // fixed depth — the racket only slides left/right
+  readonly playerY: number = PADDLE.hoverY; // fixed height — never bobs, hit ignores height
   racketYaw = 0; // face yaw from the swing (steers the return)
   aimDepth = 0; // -1 (short) .. 1 (deep), from the player's pointer
 
@@ -68,6 +66,24 @@ export class PingPongGame {
     return this.phase === "serving" && this.server === "player";
   }
 
+  /**
+   * Where the ball will next hit the table (its bounce point), or null. Used as
+   * the on-table cue so the player can slide the racket to the right spot.
+   */
+  predictBounce(): { x: number; z: number } | null {
+    if (this.phase !== "rally") return null;
+    const g = PHYSICS.gravity;
+    const y0 = this.pos.y - (TABLE.surfaceY + BALL.radius);
+    const disc = this.vel.y * this.vel.y + 2 * g * y0;
+    if (disc < 0) return null;
+    const t = (this.vel.y + Math.sqrt(disc)) / g; // time to the descending crossing
+    if (t <= 0) return null;
+    const x = this.pos.x + this.vel.x * t;
+    const z = this.pos.z + this.vel.z * t;
+    if (Math.abs(x) > TABLE.halfWidth || Math.abs(z) > TABLE.halfLength) return null;
+    return { x, z };
+  }
+
   /** Pointer pressed — start charging a stroke. */
   press(): void {
     if (this.phase === "serving" || this.phase === "rally") this.charging = true;
@@ -105,31 +121,18 @@ export class PingPongGame {
   private movePaddles(dt: number): void {
     const limit = TABLE.halfWidth + 0.2;
     const newX = clamp(this.playerTargetX, -limit, limit);
-    const newZ = clamp(this.playerTargetZ, PADDLE.playerZ - PADDLE.zTravel, PADDLE.playerZ + PADDLE.zTravel);
-    const newY = approach(this.playerY, this.racketTargetY(), 7 * dt);
 
-    // The racket follows the mouse directly (crisp control); its frame velocity
-    // is fed into the ball on contact (swing power) and sets the face yaw (aim).
-    const inv = dt > 0 ? 1 / dt : 0;
-    this.racketVel = vec3(
-      clampMag((newX - this.playerX) * inv, RACKET.maxSwing),
-      clampMag((newY - this.playerY) * inv, RACKET.maxSwing),
-      clampMag((newZ - this.playerZ) * inv, RACKET.maxSwing),
-    );
+    // Lateral mouse speed (the swing) sets the face yaw, which aims the return.
+    const swingX = clampMag(dt > 0 ? (newX - this.playerX) / dt : 0, RACKET.maxSwing);
+    this.racketYaw = clamp(swingX * RACKET.yawGain, -RACKET.maxYaw, RACKET.maxYaw);
+
+    // The racket only slides left/right (depth + height are fixed). The hit ignores
+    // height, so the racket always covers the ball — no bobbing, no clipping.
     this.playerX = newX;
-    this.playerY = newY;
-    this.playerZ = newZ;
-    this.racketYaw = clamp(this.racketVel.x * RACKET.yawGain, -RACKET.maxYaw, RACKET.maxYaw);
 
     const target = this.ai.targetX(this.pos.x, this.vel.z, this.aiX, this.difficulty);
     const speed = lerp(PADDLE.aiSpeedEasy, PADDLE.aiSpeedHard, this.difficulty);
     this.aiX = approach(this.aiX, clamp(target, -limit, limit), speed * dt);
-  }
-
-  /** The racket auto-reaches the ball's height while it's incoming, else rests. */
-  private racketTargetY(): number {
-    const incoming = this.vel.z > 0 && this.pos.z > -0.2;
-    return incoming ? clamp(this.pos.y, RACKET.reachYMin, RACKET.reachYMax) : PADDLE.hoverY;
   }
 
   private stepServing(dt: number): void {
@@ -159,7 +162,7 @@ export class PingPongGame {
     if (this.phase !== "rally") return;
     this.handleBounce();
     if (this.phase !== "rally") return;
-    this.playerCollision(); // physical player return
+    this.handlePlayerPlane(prevZ); // player return
     this.handlePaddlePlanes(prevZ); // AI return
     if (this.phase !== "rally") return;
     this.handleOut();
@@ -207,34 +210,23 @@ export class PingPongGame {
     else this.awardPoint(this.lastHitter!); // AI missed the return
   }
 
-  /** Physical player return: the ball reflects off the angled racket face. */
-  private playerCollision(): void {
-    if (this.receiver !== "player" || this.bouncesOnReceiver < 1) return;
+  /**
+   * Player return. When the ball reaches the racket's depth plane within lateral
+   * (X) reach, send a controlled shot into the AI court. Height is deliberately
+   * ignored — the racket always covers the ball's height — so the racket never
+   * bobs and forward/back never mis-times a hit. Aim comes from the swing (yaw),
+   * pace/depth from charge.
+   */
+  private handlePlayerPlane(prevZ: number): void {
+    if (this.receiver !== "player" || this.vel.z <= 0) return;
+    if (!(prevZ < this.playerZ && this.pos.z >= this.playerZ)) return; // crossed the racket plane
+    if (this.bouncesOnReceiver < 1) return; // must bounce on our side first
+    if (Math.abs(this.pos.x - this.playerX) > PADDLE.bladeRadius + BALL.radius) return; // lateral miss
 
-    const center = vec3(this.playerX, this.playerY, this.playerZ);
-    const n = this.playerNormal();
-    const rel = sub(this.pos, center);
-    const d = dot(rel, n); // distance from the racket plane along its normal
-    if (d < 0 || d > BALL.radius + RACKET.thickness) return; // not against the front face
-
-    const inPlane = sub(rel, scale(n, d));
-    if (length(inPlane) > PADDLE.bladeRadius) return; // off the blade
-
-    if (dot(this.vel, n) >= 0) return; // not heading into the face
-
-    // Controlled return: send the ball INTO the AI's court rather than reflecting
-    // its (chaotic) incoming angle. Lateral aim comes from the swing (yaw); depth
-    // and pace come from charge. This is what keeps returns sensible and aimable.
     const power = this.charge;
     const aimX = clamp((this.racketYaw / RACKET.maxYaw) * TABLE.halfWidth * 0.82, -TABLE.halfWidth * 0.82, TABLE.halfWidth * 0.82);
     const depthT = clamp(0.4 + power * 0.5, 0, 1);
-    this.pos = addScaled(center, n, BALL.radius + RACKET.thickness); // sit on the face
     this.launch("player", aimX, depthT, power);
-  }
-
-  /** Player racket face normal: toward the net, tilted up, yawed by the swing. */
-  private playerNormal(): Vec3 {
-    return normalize(vec3(Math.sin(this.racketYaw), RACKET.upBias, -Math.cos(this.racketYaw)));
   }
 
   private handleOut(): void {

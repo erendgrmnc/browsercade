@@ -12,13 +12,13 @@ export function Scene({ game }: { game: PingPongGame }) {
   const playerPaddle = useRef<THREE.Group>(null);
   const aiPaddle = useRef<THREE.Group>(null);
   const charge = useRef<THREE.Mesh>(null);
+  const landing = useRef<THREE.Mesh>(null);
+  const lookTarget = useRef(new THREE.Vector3(0, 0.28, -0.5));
   const { pointer, camera } = useThree();
 
   useFrame((_, delta) => {
-    const edge = TABLE.halfWidth + 0.15;
-    game.playerTargetX = pointer.x * edge;
-    // Mouse forward/back slides the racket toward / away from the net (and aims deeper / shorter).
-    game.playerTargetZ = PADDLE.playerZ - pointer.y * PADDLE.zTravel;
+    // Mouse X slides the racket left/right; mouse Y only sets serve depth.
+    game.playerTargetX = pointer.x * (TABLE.halfWidth + 0.2);
     game.aimDepth = clamp(pointer.y, -1, 1);
     game.update(Math.min(delta, 1 / 30));
 
@@ -40,7 +40,19 @@ export function Scene({ game }: { game: PingPongGame }) {
       }
     }
 
-    camera.lookAt(0, 0.28, -0.5);
+    // Landing marker: where the ball will next bounce — slide your racket there.
+    if (landing.current) {
+      const spot = game.predictBounce();
+      landing.current.visible = !!spot;
+      if (spot) landing.current.position.set(spot.x, 0.014, spot.z);
+    }
+
+    // Camera gently tracks the ball so depth/landing read clearly.
+    const tx = clamp(game.pos.x * 0.5, -0.8, 0.8);
+    const tz = clamp(game.pos.z * 0.4, -1, 1) - 0.3;
+    lookTarget.current.x += (tx - lookTarget.current.x) * 0.06;
+    lookTarget.current.z += (tz - lookTarget.current.z) * 0.06;
+    camera.lookAt(lookTarget.current.x, 0.28, lookTarget.current.z);
   });
 
   return (

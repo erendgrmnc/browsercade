@@ -17,7 +17,7 @@ export const PADDLE = {
   aiZ: -1.78,
   bladeRadius: 0.17,
   reach: 0.3, // lateral catch radius around the paddle
-  hoverY: 0.2,
+  hoverY: 0.3, // fixed racket height — hovers clearly above the table (blade + handle)
   playerSpeed: 8.0, // lateral (left/right) speed
   playerSpeedZ: 6.5, // forward/back (toward/away from the net) speed
   zTravel: 0.55, // how far forward/back the racket can slide from its base depth
@@ -49,7 +49,7 @@ export const RACKET = {
   thickness: 0.05, // collider half-depth
   maxBallSpeed: 6.5, // hard cap on return speed
   maxSwing: 2.5, // cap on racket velocity (limits height-chasing explosions)
-  reachYMin: 0.2, // keep the blade above the table; still catches low balls
+  reachYMin: 0.24, // keep the blade (and handle) above the table; still catches low balls
   reachYMax: 0.55,
 } as const;
 
