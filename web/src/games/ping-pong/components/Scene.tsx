@@ -25,8 +25,9 @@ export function Scene({ game }: { game: PingPongGame }) {
     ball.current?.position.set(game.pos.x, game.pos.y, game.pos.z);
     if (playerPaddle.current) {
       playerPaddle.current.position.set(game.playerX, game.playerY, game.playerZ);
-      // Yaw is bound to lateral position — this is both the look and the aim.
-      playerPaddle.current.rotation.y = game.racketYaw;
+      // Roll bound to lateral position — the round blade keeps facing the net,
+      // the handle swings to the side like a clock hand.
+      playerPaddle.current.rotation.z = game.racketRoll;
     }
     if (aiPaddle.current) aiPaddle.current.position.x = game.aiX;
 

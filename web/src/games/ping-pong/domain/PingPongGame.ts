@@ -32,7 +32,7 @@ export class PingPongGame {
   readonly playerY: number = PADDLE.hoverY; // fixed height — the hit ignores height
   playerTargetX = 0; // from mouse X
   playerTargetZ: number = PADDLE.playerBaseZ; // from mouse Y
-  racketYaw = 0; // visible face yaw, bound to lateral position; also the aim
+  racketRoll = 0; // visible roll (blade keeps facing the net), bound to lateral position
   forwardSpeed = 0; // smoothed paddle speed toward the net (u/s) — sets power
 
   aiX = 0;
@@ -119,9 +119,10 @@ export class PingPongGame {
     const rawForward = dt > 0 ? (this.playerZ - newZ) / dt : 0;
     this.forwardSpeed = lerp(this.forwardSpeed, Math.max(rawForward, 0), SWING.velSmooth);
 
-    // Yaw is bound to lateral POSITION: centre faces the net, extremes turn ~maxYaw.
+    // Roll is bound to lateral POSITION: centre = upright, full left/right rolls
+    // the racket ~90° (handle swings to that side). The blade keeps facing the net.
     const posT = newX / PADDLE.xRange; // -1..1
-    this.racketYaw = posT * PADDLE.maxYaw;
+    this.racketRoll = posT * PADDLE.maxRoll;
 
     this.playerX = newX;
     this.playerZ = newZ;
@@ -238,11 +239,10 @@ export class PingPongGame {
     return clamp(SHOT.basePower + (1 - SHOT.basePower) * t, 0, 1);
   }
 
-  /** Send the ball where the racket face points, with depth scaling with power. */
+  /** Send the ball where the racket points: where you stand aims it (left → left). */
   private launchFromFace(power: number): void {
-    // Face normal's lateral component: where you stand aims the shot.
-    const faceX = -Math.sin(this.racketYaw);
-    const aimX = clamp(faceX * TABLE.halfWidth * SHOT.aimSideFrac, -TABLE.halfWidth * SHOT.aimSideFrac, TABLE.halfWidth * SHOT.aimSideFrac);
+    const posT = this.racketRoll / PADDLE.maxRoll; // -1..1, your lateral position
+    const aimX = clamp(posT * TABLE.halfWidth * SHOT.aimSideFrac, -TABLE.halfWidth * SHOT.aimSideFrac, TABLE.halfWidth * SHOT.aimSideFrac);
     const depthT = lerp(SHOT.depthMin, SHOT.depthMax, power);
     this.launch("player", aimX, depthT, power);
   }
@@ -263,7 +263,7 @@ export class PingPongGame {
     let depthT: number;
     if (side === "player") {
       power = Math.max(SWING.serveMinPower, this.powerFromForward(this.servePeakForward));
-      targetX = clamp(-Math.sin(this.racketYaw) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.7, TABLE.halfWidth * 0.7);
+      targetX = clamp((this.racketRoll / PADDLE.maxRoll) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.7, TABLE.halfWidth * 0.7);
       depthT = lerp(0.45, 0.85, power);
     } else {
       power = lerp(0.3, 0.6, this.difficulty);

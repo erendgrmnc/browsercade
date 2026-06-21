@@ -22,16 +22,16 @@ export function Paddle({ blade }: { blade: string }) {
         <meshStandardMaterial color={palette.rubberBack} roughness={0.7} />
       </mesh>
 
-      {/* handle — springs from the bottom of the blade and rakes back toward the
-          player (+Z) and slightly down, never approaching the table surface */}
-      <group position={[0, -(r - 0.015), 0]} rotation={[-1.1, 0, 0]}>
-        <mesh position={[0, -0.085, 0]} castShadow>
-          <cylinderGeometry args={[0.028, 0.032, 0.17, 16]} />
+      {/* handle — from the bottom of the blade, raked gently back toward the player.
+          Stays above the table; with the paddle's roll it swings to the side. */}
+      <group position={[0, -(r - 0.02), 0]} rotation={[-0.5, 0, 0]}>
+        <mesh position={[0, -0.08, 0]} castShadow>
+          <cylinderGeometry args={[0.03, 0.034, 0.15, 16]} />
           <meshStandardMaterial color={palette.handle} roughness={0.6} />
         </mesh>
         {/* grip end cap */}
-        <mesh position={[0, -0.18, 0]} castShadow>
-          <cylinderGeometry args={[0.036, 0.03, 0.04, 16]} />
+        <mesh position={[0, -0.155, 0]} castShadow>
+          <cylinderGeometry args={[0.038, 0.032, 0.035, 16]} />
           <meshStandardMaterial color={palette.handleGrip} roughness={0.8} />
         </mesh>
       </group>

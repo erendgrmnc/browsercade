@@ -16,11 +16,11 @@ export const PADDLE = {
   playerBaseZ: 1.78, // player's resting depth; mouse Y slides forward/back around it
   aiZ: -1.78,
   bladeRadius: 0.17,
-  hoverY: 0.3, // fixed racket height — hovers clearly above the table, never clips
+  hoverY: 0.34, // fixed racket height — hovers clearly above the table, never clips
   xRange: 1.0, // half-range of lateral travel (mouse x = ±1 → ±xRange)
   zForward: 0.5, // how far toward the net the racket can push from its base
-  zBack: 0.16, // how far back it can pull
-  maxYaw: 1.45, // racket face yaw at the lateral extremes (~83°)
+  zBack: 0.5, // how far back it can pull (symmetric, easy forward/back control)
+  maxRoll: Math.PI / 2, // racket ROLL at the lateral extremes (90°: handle swings to the side)
   catchRadius: 0.17, // lateral catch radius — ball centre must reach the blade
   catchDepth: 0.13, // depth band around the paddle plane that counts as a strike
   aiReach: 0.3, // AI lateral catch radius
