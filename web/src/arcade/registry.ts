@@ -16,9 +16,10 @@ export const GAMES: GameDefinition[] = [
   {
     id: "ping-pong",
     title: "Ping Pong",
-    blurb: "A table-tennis rally against the AI — or a friend online.",
-    tags: ["Arcade", "Physics", "Online"],
-    availability: "soon",
+    blurb: "A table-tennis rally against the AI. Move your mouse to aim your paddle.",
+    tags: ["Arcade", "Physics"],
+    availability: "ready",
+    load: () => import("@/games/ping-pong/PingPongApp"),
   },
   {
     id: "basketball",
