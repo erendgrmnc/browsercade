@@ -13,12 +13,15 @@ export const BALL = {
 } as const;
 
 export const PADDLE = {
-  playerZ: 1.78,
+  playerZ: 1.78, // player's resting depth (the base; mouse forward/back moves around it)
   aiZ: -1.78,
   bladeRadius: 0.17,
   reach: 0.3, // lateral catch radius around the paddle
   hoverY: 0.2,
-  playerSpeed: 8.0,
+  playerSpeed: 8.0, // lateral (left/right) speed
+  playerSpeedZ: 6.5, // forward/back (toward/away from the net) speed
+  zTravel: 0.55, // how far forward/back the racket can slide from its base depth
+  edgeTilt: 0.55, // max roll (radians) as the racket nears the side edge
   aiSpeedEasy: 3.4,
   aiSpeedHard: 8.2,
 } as const;
@@ -32,6 +35,22 @@ export const SHOT = {
   flightSlow: 0.96,
   aimLateral: 0.95, // how strongly the contact offset steers the ball sideways
   chargeTime: 0.7, // seconds of holding to reach full power
+} as const;
+
+// Real ball↔racket collision (the player's returns reflect off the racket face).
+export const RACKET = {
+  restitution: 0.62, // energy kept on a bounce off the rubber
+  basePower: 3.0, // forward impulse even on a soft touch (so a return clears the net)
+  chargePower: 3.8, // extra impulse at full charge
+  upBias: 0.5, // how much the face points up — gives the return its arc
+  yawGain: 0.16, // how sharply a sideways swing angles the face
+  maxYaw: 0.6, // max face yaw, radians
+  thickness: 0.06, // collider half-depth
+  catchPad: 0.05, // extra in-plane forgiveness beyond the blade
+  maxBallSpeed: 9.5,
+  maxSwing: 4.0, // cap on racket velocity fed into the ball
+  reachYMin: 0.06, // racket auto-tracks the ball's height within this band
+  reachYMax: 0.6,
 } as const;
 
 export const RULES = {

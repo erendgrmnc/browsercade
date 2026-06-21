@@ -15,19 +15,26 @@ export function Scene({ game }: { game: PingPongGame }) {
   const { pointer, camera } = useThree();
 
   useFrame((_, delta) => {
-    game.playerTargetX = pointer.x * (TABLE.halfWidth + 0.15);
+    const edge = TABLE.halfWidth + 0.15;
+    game.playerTargetX = pointer.x * edge;
+    // Mouse forward/back slides the racket toward / away from the net (and aims deeper / shorter).
+    game.playerTargetZ = PADDLE.playerZ - pointer.y * PADDLE.zTravel;
     game.aimDepth = clamp(pointer.y, -1, 1);
     game.update(Math.min(delta, 1 / 30));
 
     ball.current?.position.set(game.pos.x, game.pos.y, game.pos.z);
-    if (playerPaddle.current) playerPaddle.current.position.x = game.playerX;
+    if (playerPaddle.current) {
+      playerPaddle.current.position.set(game.playerX, game.playerY, game.playerZ);
+      // The racket angles with your swing — this is what steers the return.
+      playerPaddle.current.rotation.y = game.racketYaw;
+    }
     if (aiPaddle.current) aiPaddle.current.position.x = game.aiX;
 
     if (charge.current) {
       const show = game.charging && game.charge > 0.02;
       charge.current.visible = show;
       if (show) {
-        charge.current.position.set(game.playerX, 0.01, PADDLE.playerZ);
+        charge.current.position.set(game.playerX, 0.01, game.playerZ);
         const s = 0.5 + game.charge;
         charge.current.scale.set(s, s, s);
       }

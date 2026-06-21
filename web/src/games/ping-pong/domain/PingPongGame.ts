@@ -5,10 +5,10 @@
  * aim to a target with a flight time set by charge — hold to power up, position
  * the paddle to angle the return. No React, no three.js.
  */
-import { BALL, PADDLE, PHYSICS, RULES, SHOT, TABLE } from "../config";
+import { BALL, PADDLE, PHYSICS, RACKET, RULES, SHOT, TABLE } from "../config";
 import { AiController } from "./AiController";
 import { clamp, lerp } from "@/shared/math";
-import { integrate, vec3, type Vec3 } from "@/shared/vec3";
+import { add, addScaled, dot, integrate, length, normalize, scale, sub, vec3, type Vec3 } from "@/shared/vec3";
 import type { Phase, Score, Side } from "./types";
 
 type Events = {
@@ -24,6 +24,11 @@ export class PingPongGame {
   playerX = 0;
   aiX = 0;
   playerTargetX = 0;
+  playerZ: number = PADDLE.playerZ; // live forward/back depth of the racket
+  playerTargetZ: number = PADDLE.playerZ; // where the mouse wants the racket (toward/away from the net)
+  playerY: number = PADDLE.hoverY; // live racket height (auto-reaches the ball)
+  racketVel: Vec3 = vec3(); // racket velocity this frame — swing power + face yaw
+  racketYaw = 0; // face yaw from the swing (steers the return)
   aimDepth = 0; // -1 (short) .. 1 (deep), from the player's pointer
 
   charge = 0; // 0..1
@@ -98,17 +103,38 @@ export class PingPongGame {
   }
 
   private movePaddles(dt: number): void {
-    const limit = TABLE.halfWidth + 0.15;
-    this.playerX = approach(this.playerX, clamp(this.playerTargetX, -limit, limit), PADDLE.playerSpeed * dt);
+    const limit = TABLE.halfWidth + 0.2;
+    const newX = clamp(this.playerTargetX, -limit, limit);
+    const newZ = clamp(this.playerTargetZ, PADDLE.playerZ - PADDLE.zTravel, PADDLE.playerZ + PADDLE.zTravel);
+    const newY = approach(this.playerY, this.racketTargetY(), 7 * dt);
+
+    // The racket follows the mouse directly (crisp control); its frame velocity
+    // is fed into the ball on contact (swing power) and sets the face yaw (aim).
+    const inv = dt > 0 ? 1 / dt : 0;
+    this.racketVel = vec3(
+      clampMag((newX - this.playerX) * inv, RACKET.maxSwing),
+      clampMag((newY - this.playerY) * inv, RACKET.maxSwing),
+      clampMag((newZ - this.playerZ) * inv, RACKET.maxSwing),
+    );
+    this.playerX = newX;
+    this.playerY = newY;
+    this.playerZ = newZ;
+    this.racketYaw = clamp(this.racketVel.x * RACKET.yawGain, -RACKET.maxYaw, RACKET.maxYaw);
 
     const target = this.ai.targetX(this.pos.x, this.vel.z, this.aiX, this.difficulty);
     const speed = lerp(PADDLE.aiSpeedEasy, PADDLE.aiSpeedHard, this.difficulty);
     this.aiX = approach(this.aiX, clamp(target, -limit, limit), speed * dt);
   }
 
+  /** The racket auto-reaches the ball's height while it's incoming, else rests. */
+  private racketTargetY(): number {
+    const incoming = this.vel.z > 0 && this.pos.z > -0.2;
+    return incoming ? clamp(this.pos.y, RACKET.reachYMin, RACKET.reachYMax) : PADDLE.hoverY;
+  }
+
   private stepServing(dt: number): void {
     if (this.server === "player") {
-      this.pos = vec3(this.playerX, PADDLE.hoverY + 0.08, PADDLE.playerZ - 0.12);
+      this.pos = vec3(this.playerX, PADDLE.hoverY + 0.08, this.playerZ - 0.12);
       return;
     }
     this.pos.x = this.aiX;
@@ -133,7 +159,8 @@ export class PingPongGame {
     if (this.phase !== "rally") return;
     this.handleBounce();
     if (this.phase !== "rally") return;
-    this.handlePaddlePlanes(prevZ);
+    this.playerCollision(); // physical player return
+    this.handlePaddlePlanes(prevZ); // AI return
     if (this.phase !== "rally") return;
     this.handleOut();
   }
@@ -168,17 +195,53 @@ export class PingPongGame {
   }
 
   private handlePaddlePlanes(prevZ: number): void {
-    if (this.receiver === "player" && this.vel.z > 0 && prevZ < PADDLE.playerZ && this.pos.z >= PADDLE.playerZ) {
-      this.resolveReach("player", this.playerX, PADDLE.reach);
-    } else if (this.receiver === "ai" && this.vel.z < 0 && prevZ > PADDLE.aiZ && this.pos.z <= PADDLE.aiZ) {
-      this.resolveReach("ai", this.aiX, PADDLE.reach * lerp(0.85, 1.12, this.difficulty));
+    // The player's return is physical (playerCollision); the AI returns here.
+    if (this.receiver === "ai" && this.vel.z < 0 && prevZ > PADDLE.aiZ && this.pos.z <= PADDLE.aiZ) {
+      this.resolveAiReach(PADDLE.reach * lerp(0.85, 1.12, this.difficulty));
     }
   }
 
-  private resolveReach(side: Side, paddleX: number, reach: number): void {
+  private resolveAiReach(reach: number): void {
     if (this.bouncesOnReceiver === 0) return; // hasn't bounced yet — it's flying long (out comes next)
-    if (Math.abs(this.pos.x - paddleX) <= reach) this.stroke(side);
-    else this.awardPoint(this.lastHitter!); // missed the return
+    if (Math.abs(this.pos.x - this.aiX) <= reach) this.aiStroke();
+    else this.awardPoint(this.lastHitter!); // AI missed the return
+  }
+
+  /** Physical player return: the ball reflects off the angled racket face. */
+  private playerCollision(): void {
+    if (this.receiver !== "player" || this.bouncesOnReceiver < 1) return;
+
+    const center = vec3(this.playerX, this.playerY, this.playerZ);
+    const n = this.playerNormal();
+    const rel = sub(this.pos, center);
+    const d = dot(rel, n); // distance from the racket plane along its normal
+    if (d < 0 || d > BALL.radius + RACKET.thickness) return; // not against the front face
+
+    const inPlane = sub(rel, scale(n, d));
+    if (length(inPlane) > PADDLE.bladeRadius + BALL.radius + RACKET.catchPad) return; // off the blade
+
+    const vRel = sub(this.vel, this.racketVel);
+    const vn = dot(vRel, n);
+    if (vn >= 0) return; // moving away — no contact
+
+    // reflect the relative velocity, restore the racket's own velocity, then push
+    // along the face normal by the swing/charge impulse.
+    const reflected = addScaled(vRel, n, -(1 + RACKET.restitution) * vn);
+    const impulse = RACKET.basePower + this.charge * RACKET.chargePower;
+    this.vel = addScaled(add(reflected, this.racketVel), n, impulse);
+    this.clampBallSpeed();
+    this.pos = addScaled(center, n, BALL.radius + RACKET.thickness); // sit on the face
+    this.registerHit("player");
+  }
+
+  /** Player racket face normal: toward the net, tilted up, yawed by the swing. */
+  private playerNormal(): Vec3 {
+    return normalize(vec3(Math.sin(this.racketYaw), RACKET.upBias, -Math.cos(this.racketYaw)));
+  }
+
+  private clampBallSpeed(): void {
+    const speed = length(this.vel);
+    if (speed > RACKET.maxBallSpeed) this.vel = scale(this.vel, RACKET.maxBallSpeed / speed);
   }
 
   private handleOut(): void {
@@ -201,23 +264,12 @@ export class PingPongGame {
     this.setPhase("rally");
   }
 
-  private stroke(side: Side): void {
-    let targetX: number;
-    let power: number;
-    let depthT: number;
-
-    if (side === "player") {
-      power = this.charge;
-      const offset = clamp((this.pos.x - this.playerX) / PADDLE.reach, -1, 1);
-      targetX = clamp(offset * TABLE.halfWidth * SHOT.aimLateral, -TABLE.halfWidth * 0.85, TABLE.halfWidth * 0.85);
-      depthT = (this.aimDepth + 1) / 2;
-    } else {
-      power = lerp(0.25, 0.85, this.difficulty);
-      targetX = clamp(-this.playerX * 0.5 + (rand() - 0.5) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.8, TABLE.halfWidth * 0.8);
-      depthT = rand();
-    }
-    this.launch(side, targetX, depthT, power);
-    this.pos.z = side === "player" ? PADDLE.playerZ - 0.02 : PADDLE.aiZ + 0.02;
+  /** AI return — aimed at the player's court (target-based; the player is physical). */
+  private aiStroke(): void {
+    const power = lerp(0.25, 0.85, this.difficulty);
+    const targetX = clamp(-this.playerX * 0.5 + (rand() - 0.5) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.8, TABLE.halfWidth * 0.8);
+    this.launch("ai", targetX, rand(), power);
+    this.pos.z = PADDLE.aiZ + 0.02;
   }
 
   /** Aim the ball toward the opponent's court, landing at (targetX, targetZ). */
@@ -232,9 +284,13 @@ export class PingPongGame {
       (TABLE.surfaceY - this.pos.y + 0.5 * PHYSICS.gravity * T * T) / T,
       (targetZ - this.pos.z) / T,
     );
+    this.registerHit(side);
+  }
+
+  private registerHit(side: Side): void {
     this.lastHitter = side;
-    this.receiver = opp;
-    this.mustBounceOn = opp;
+    this.receiver = opponent(side);
+    this.mustBounceOn = opponent(side);
     this.bouncesOnReceiver = 0;
   }
 
@@ -271,7 +327,7 @@ export class PingPongGame {
     this.charging = false;
     this.vel = vec3();
     if (server === "player") {
-      this.pos = vec3(this.playerX, PADDLE.hoverY + 0.08, PADDLE.playerZ - 0.12);
+      this.pos = vec3(this.playerX, PADDLE.hoverY + 0.08, this.playerZ - 0.12);
     } else {
       this.pos = vec3(this.aiX, PADDLE.hoverY + 0.08, PADDLE.aiZ + 0.12);
       this.timer = RULES.aiServeDelay;
@@ -298,4 +354,8 @@ function approach(current: number, target: number, maxDelta: number): number {
 
 function rand(): number {
   return Math.random();
+}
+
+function clampMag(value: number, max: number): number {
+  return Math.max(-max, Math.min(max, value));
 }
