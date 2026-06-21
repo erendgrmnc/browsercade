@@ -34,6 +34,7 @@ export class PingPongGame {
   playerTargetZ: number = PADDLE.playerBaseZ; // from mouse Y
   racketRoll = 0; // visible roll (blade keeps facing the net), bound to lateral position
   forwardSpeed = 0; // smoothed paddle speed toward the net (u/s) — sets power
+  lateralSpeed = 0; // smoothed sideways paddle speed (signed) — adds aim on contact
 
   aiX = 0;
 
@@ -114,10 +115,11 @@ export class PingPongGame {
     const newX = clamp(this.playerTargetX, -PADDLE.xRange, PADDLE.xRange);
     const newZ = clamp(this.playerTargetZ, PADDLE.playerBaseZ - PADDLE.zForward, PADDLE.playerBaseZ + PADDLE.zBack);
 
-    // Forward velocity (toward the net = z decreasing). Low-passed so a flick reads
-    // as power without single-frame spikes.
-    const rawForward = dt > 0 ? (this.playerZ - newZ) / dt : 0;
-    this.forwardSpeed = lerp(this.forwardSpeed, Math.max(rawForward, 0), SWING.velSmooth);
+    // Forward velocity (toward the net = z decreasing) → power; sideways velocity →
+    // aim. Both low-passed so a flick reads cleanly without single-frame spikes.
+    const inv = dt > 0 ? 1 / dt : 0;
+    this.forwardSpeed = lerp(this.forwardSpeed, Math.max((this.playerZ - newZ) * inv, 0), SWING.velSmooth);
+    this.lateralSpeed = lerp(this.lateralSpeed, (newX - this.playerX) * inv, SWING.velSmooth);
 
     // Roll is bound to lateral POSITION: centre = upright, full left/right rolls
     // the racket ~90° (handle swings to that side). The blade keeps facing the net.
@@ -239,10 +241,16 @@ export class PingPongGame {
     return clamp(SHOT.basePower + (1 - SHOT.basePower) * t, 0, 1);
   }
 
-  /** Send the ball where the racket points: where you stand aims it (left → left). */
+  /**
+   * Send the ball where the racket points. Aim = where you stand (base) PLUS a
+   * kick from how fast you flick the mouse sideways at contact (swipe across the
+   * ball to angle it). Speed/depth come from the forward flick (power).
+   */
   private launchFromFace(power: number): void {
     const posT = this.racketRoll / PADDLE.maxRoll; // -1..1, your lateral position
-    const aimX = clamp(posT * TABLE.halfWidth * SHOT.aimSideFrac, -TABLE.halfWidth * SHOT.aimSideFrac, TABLE.halfWidth * SHOT.aimSideFrac);
+    const baseAim = posT * TABLE.halfWidth * SHOT.aimSideFrac;
+    const swingAim = clamp(this.lateralSpeed * SWING.lateralAimGain, -SWING.maxSwingAim, SWING.maxSwingAim);
+    const aimX = clamp(baseAim + swingAim, -TABLE.halfWidth * 0.92, TABLE.halfWidth * 0.92);
     const depthT = lerp(SHOT.depthMin, SHOT.depthMax, power);
     this.launch("player", aimX, depthT, power);
   }

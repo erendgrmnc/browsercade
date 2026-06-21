@@ -43,8 +43,10 @@ export const SHOT = {
 
 export const SWING = {
   fullForwardSpeed: 6.0, // paddle forward speed (u/s) that yields full power
-  velSmooth: 0.5, // low-pass on the paddle's forward velocity (0..1, higher = snappier)
+  velSmooth: 0.5, // low-pass on the paddle's velocity (0..1, higher = snappier)
   serveMinPower: 0.28, // a click-serve without a flick still has this much pace
+  lateralAimGain: 0.14, // sideways swing speed → extra lateral aim (flick across the ball)
+  maxSwingAim: 0.6, // cap on how far the sideways flick alone can steer the shot
 } as const;
 
 export const RULES = {

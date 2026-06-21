@@ -11,7 +11,7 @@ const LEVELS: { label: string; value: number }[] = [
 
 const CONTROLS = [
   "Mouse left / right — slide and aim",
-  "Where you stand steers the return",
+  "Swipe sideways as you hit — angle the ball",
   "Mouse up / down — push toward the net",
   "Flick forward fast — a harder shot",
   "Your serve — flick forward, then click",
