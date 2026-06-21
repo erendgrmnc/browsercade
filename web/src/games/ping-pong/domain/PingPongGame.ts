@@ -10,7 +10,7 @@
  * sets the shot's power. Strokes are sent to a target with a flight time from
  * that power, so returns reliably land in court. No React, no three.js.
  */
-import { BALL, PADDLE, PHYSICS, RULES, SHOT, SWING, TABLE } from "../config";
+import { BALL, PADDLE, PHYSICS, RULES, SERVE, SHOT, SWING, TABLE } from "../config";
 import { AiController } from "./AiController";
 import { clamp, lerp } from "@/shared/math";
 import { integrate, vec3, type Vec3 } from "@/shared/vec3";
@@ -47,6 +47,7 @@ export class PingPongGame {
   private receiver: Side | null = null;
   private mustBounceOn: Side | null = null;
   private bouncesOnReceiver = 0;
+  private serveBouncePending = false; // serve must bounce on the server's own side first
   private servePeakForward = 0; // best forward flick seen while waiting to serve
   private timer = 0;
   private totalPoints = 0;
@@ -193,6 +194,19 @@ export class PingPongGame {
 
   private onBounce(side: Side): void {
     if (this.mustBounceOn === null) return;
+
+    if (this.serveBouncePending) {
+      if (side === this.lastHitter) {
+        // legal serve bounce on the server's own side → now require the receiver's side
+        this.serveBouncePending = false;
+        this.mustBounceOn = this.receiver;
+        this.bouncesOnReceiver = 0;
+      } else {
+        this.awardPoint(this.receiver!); // served straight over without bouncing own side
+      }
+      return;
+    }
+
     if (side === this.mustBounceOn) {
       this.bouncesOnReceiver += 1;
       if (this.bouncesOnReceiver >= 2) this.awardPoint(this.lastHitter!); // receiver let it bounce twice
@@ -268,19 +282,37 @@ export class PingPongGame {
   private serve(side: Side): void {
     let power: number;
     let targetX: number;
-    let depthT: number;
     if (side === "player") {
       power = Math.max(SWING.serveMinPower, this.powerFromForward(this.servePeakForward));
-      targetX = clamp((this.racketRoll / PADDLE.maxRoll) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.7, TABLE.halfWidth * 0.7);
-      depthT = lerp(0.45, 0.85, power);
+      targetX = clamp((this.racketRoll / PADDLE.maxRoll) * TABLE.halfWidth * 0.55, -TABLE.halfWidth * 0.6, TABLE.halfWidth * 0.6);
     } else {
       power = lerp(0.3, 0.6, this.difficulty);
-      targetX = (rand() - 0.5) * TABLE.halfWidth;
-      depthT = rand();
+      targetX = (rand() - 0.5) * TABLE.halfWidth * 0.8;
     }
     this.servePeakForward = 0;
-    this.launch(side, targetX, depthT, power);
+    this.serveLaunch(side, targetX, power);
     this.setPhase("rally");
+  }
+
+  /**
+   * A legal serve: aim the FIRST bounce at a point on the server's own side; the
+   * forward speed then carries the ball over the net to the opponent's court.
+   */
+  private serveLaunch(side: Side, targetX: number, power: number): void {
+    const sign = side === "player" ? 1 : -1;
+    const bounceZ = sign * SERVE.ownBounceZ; // first bounce, on the server's own half
+    const T = lerp(SERVE.flightSlow, SERVE.flightFast, clamp(power, 0, 1));
+
+    this.vel = vec3(
+      (targetX - this.pos.x) / T,
+      (BALL.radius - this.pos.y + 0.5 * PHYSICS.gravity * T * T) / T,
+      (bounceZ - this.pos.z) / T,
+    );
+    this.lastHitter = side;
+    this.receiver = opponent(side);
+    this.mustBounceOn = side; // own side must bounce first
+    this.serveBouncePending = true;
+    this.bouncesOnReceiver = 0;
   }
 
   /** AI return — aimed at the player's court. */
@@ -311,6 +343,7 @@ export class PingPongGame {
     this.receiver = opponent(side);
     this.mustBounceOn = opponent(side);
     this.bouncesOnReceiver = 0;
+    this.serveBouncePending = false;
   }
 
   private awardPoint(winner: Side): void {
@@ -342,6 +375,7 @@ export class PingPongGame {
     this.receiver = null;
     this.mustBounceOn = null;
     this.bouncesOnReceiver = 0;
+    this.serveBouncePending = false;
     this.servePeakForward = 0;
     this.vel = vec3();
     if (server === "player") {

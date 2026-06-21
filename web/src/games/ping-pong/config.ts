@@ -49,6 +49,15 @@ export const SWING = {
   maxSwingAim: 0.6, // cap on how far the sideways flick alone can steer the shot
 } as const;
 
+// A legal serve bounces on the server's OWN side first, then clears the net to
+// the opponent's court. The ball is aimed at a first-bounce point on the server's
+// half; the forward speed carries it over after the bounce.
+export const SERVE = {
+  ownBounceZ: 0.55, // distance from the net of the first bounce (on the server's side)
+  flightSlow: 0.52, // time to the first bounce at low power
+  flightFast: 0.4, // at high power (flatter, faster, lands deeper)
+} as const;
+
 export const RULES = {
   winScore: 11,
   winBy: 2,
