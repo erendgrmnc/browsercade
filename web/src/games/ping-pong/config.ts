@@ -13,15 +13,17 @@ export const BALL = {
 } as const;
 
 export const PADDLE = {
-  playerZ: 1.78, // player's resting depth (the base; mouse forward/back moves around it)
+  playerBaseZ: 1.78, // player's resting depth; mouse Y slides forward/back around it
   aiZ: -1.78,
   bladeRadius: 0.17,
-  reach: 0.3, // lateral catch radius around the paddle
-  hoverY: 0.3, // fixed racket height — hovers clearly above the table (blade + handle)
-  playerSpeed: 8.0, // lateral (left/right) speed
-  playerSpeedZ: 6.5, // forward/back (toward/away from the net) speed
-  zTravel: 0.55, // how far forward/back the racket can slide from its base depth
-  edgeTilt: 0.55, // max roll (radians) as the racket nears the side edge
+  hoverY: 0.3, // fixed racket height — hovers clearly above the table, never clips
+  xRange: 1.0, // half-range of lateral travel (mouse x = ±1 → ±xRange)
+  zForward: 0.5, // how far toward the net the racket can push from its base
+  zBack: 0.16, // how far back it can pull
+  maxYaw: 1.45, // racket face yaw at the lateral extremes (~83°)
+  catchRadius: 0.17, // lateral catch radius — ball centre must reach the blade
+  catchDepth: 0.13, // depth band around the paddle plane that counts as a strike
+  aiReach: 0.3, // AI lateral catch radius
   aiSpeedEasy: 3.4,
   aiSpeedHard: 8.2,
 } as const;
@@ -30,27 +32,19 @@ export const PHYSICS = { gravity: 7.0, substeps: 4 } as const;
 
 export const SHOT = {
   // Flight time of a stroke from contact to its first bounce. More power → shorter,
-  // flatter, faster. Power comes from the charge meter (hold to charge).
-  flightFast: 0.62,
-  flightSlow: 0.96,
-  aimLateral: 0.95, // how strongly the contact offset steers the ball sideways
-  chargeTime: 0.7, // seconds of holding to reach full power
+  // flatter, faster. Power comes from how fast the paddle is pushed forward at contact.
+  flightFast: 0.6,
+  flightSlow: 0.95,
+  aimSideFrac: 0.82, // at full yaw, land this fraction of halfWidth off-centre (stays in court)
+  basePower: 0.18, // a still paddle still clears the net with a soft return
+  depthMin: 0.34, // soft shots land short of the AI baseline…
+  depthMax: 0.88, // …hard shots land deep
 } as const;
 
-// Real ball↔racket collision (the player's returns reflect off the racket face).
-export const RACKET = {
-  restitution: 0.68, // energy kept on a bounce off the rubber
-  basePower: 1.1, // small forward push so even a soft touch clears the net
-  chargePower: 2.2, // extra impulse at full charge
-  upBias: 0.34, // how much the face points up — gives the return its arc
-  yawGain: 0.16, // how sharply a sideways swing angles the face
-  maxYaw: 0.6, // max face yaw, radians
-  swingTransfer: 0.5, // sideways swing → lateral english on the ball
-  thickness: 0.05, // collider half-depth
-  maxBallSpeed: 6.5, // hard cap on return speed
-  maxSwing: 2.5, // cap on racket velocity (limits height-chasing explosions)
-  reachYMin: 0.24, // keep the blade (and handle) above the table; still catches low balls
-  reachYMax: 0.55,
+export const SWING = {
+  fullForwardSpeed: 6.0, // paddle forward speed (u/s) that yields full power
+  velSmooth: 0.5, // low-pass on the paddle's forward velocity (0..1, higher = snappier)
+  serveMinPower: 0.28, // a click-serve without a flick still has this much pace
 } as const;
 
 export const RULES = {
@@ -72,6 +66,7 @@ export const palette = {
   aiBlade: "#23272f",
   rubberBack: "#16181d",
   handle: "#9a6a3a",
-  charge: "#2348ff",
+  handleGrip: "#3a2a18",
+  landing: "#ffd23f",
   floor: "#0d1016",
 } as const;

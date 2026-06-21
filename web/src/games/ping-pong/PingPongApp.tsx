@@ -19,7 +19,7 @@ export default function PingPongApp() {
           <Scene game={pp.game} />
         </Canvas>
         <span className="pointer-events-none absolute bottom-3 left-3 font-mono text-[0.6rem] uppercase tracking-mono text-white/40">
-          move to slide · hold to charge · release to serve
+          slide to aim · flick forward to hit hard · click to serve
         </span>
       </div>
 

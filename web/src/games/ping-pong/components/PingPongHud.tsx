@@ -10,11 +10,11 @@ const LEVELS: { label: string; value: number }[] = [
 ];
 
 const CONTROLS = [
-  "Move mouse — slide your paddle",
-  "Hold mouse — charge a power shot",
-  "Hit off-centre — angle the return",
-  "Mouse up / down — aim deep or short",
-  "Your serve — hold, then release",
+  "Mouse left / right — slide and aim",
+  "Where you stand steers the return",
+  "Mouse up / down — push toward the net",
+  "Flick forward fast — a harder shot",
+  "Your serve — flick forward, then click",
 ];
 
 export function PingPongHud({
@@ -66,7 +66,7 @@ function statusText(phase: Phase, server: Side, score: Score): string {
     case "gameover":
       return score.player > score.ai ? "You win! 🏓" : "AI wins — rematch?";
     case "serving":
-      return server === "player" ? "Your serve — hold, then release" : "AI serving…";
+      return server === "player" ? "Your serve — flick forward, then click" : "AI serving…";
     case "point":
       return "Point!";
     default:

@@ -4,41 +4,31 @@ import * as THREE from "three";
 import { Table } from "./Table";
 import { Paddle } from "./Paddle";
 import type { PingPongGame } from "../domain/PingPongGame";
-import { BALL, PADDLE, TABLE, palette } from "../config";
+import { BALL, PADDLE, palette } from "../config";
 import { clamp } from "@/shared/math";
 
 export function Scene({ game }: { game: PingPongGame }) {
   const ball = useRef<THREE.Mesh>(null);
   const playerPaddle = useRef<THREE.Group>(null);
   const aiPaddle = useRef<THREE.Group>(null);
-  const charge = useRef<THREE.Mesh>(null);
   const landing = useRef<THREE.Mesh>(null);
   const lookTarget = useRef(new THREE.Vector3(0, 0.28, -0.5));
   const { pointer, camera } = useThree();
 
   useFrame((_, delta) => {
-    // Mouse X slides the racket left/right; mouse Y only sets serve depth.
-    game.playerTargetX = pointer.x * (TABLE.halfWidth + 0.2);
-    game.aimDepth = clamp(pointer.y, -1, 1);
+    // Mouse X slides the racket left/right (and, via yaw, aims the shot);
+    // mouse Y slides it forward/back — pushing forward fast = a harder return.
+    game.playerTargetX = pointer.x * PADDLE.xRange;
+    game.playerTargetZ = PADDLE.playerBaseZ - clamp(pointer.y, -1, 1) * PADDLE.zForward;
     game.update(Math.min(delta, 1 / 30));
 
     ball.current?.position.set(game.pos.x, game.pos.y, game.pos.z);
     if (playerPaddle.current) {
       playerPaddle.current.position.set(game.playerX, game.playerY, game.playerZ);
-      // The racket angles with your swing — this is what steers the return.
+      // Yaw is bound to lateral position — this is both the look and the aim.
       playerPaddle.current.rotation.y = game.racketYaw;
     }
     if (aiPaddle.current) aiPaddle.current.position.x = game.aiX;
-
-    if (charge.current) {
-      const show = game.charging && game.charge > 0.02;
-      charge.current.visible = show;
-      if (show) {
-        charge.current.position.set(game.playerX, 0.01, game.playerZ);
-        const s = 0.5 + game.charge;
-        charge.current.scale.set(s, s, s);
-      }
-    }
 
     // Landing marker: where the ball will next bounce — slide your racket there.
     if (landing.current) {
@@ -69,7 +59,7 @@ export function Scene({ game }: { game: PingPongGame }) {
 
       <Table />
 
-      <group ref={playerPaddle} position={[0, PADDLE.hoverY, PADDLE.playerZ]}>
+      <group ref={playerPaddle} position={[0, PADDLE.hoverY, PADDLE.playerBaseZ]}>
         <Paddle blade={palette.playerBlade} />
       </group>
       <group ref={aiPaddle} position={[0, PADDLE.hoverY, PADDLE.aiZ]} rotation={[0, Math.PI, 0]}>
@@ -81,10 +71,10 @@ export function Scene({ game }: { game: PingPongGame }) {
         <meshStandardMaterial color={palette.ball} roughness={0.35} />
       </mesh>
 
-      {/* charge ring under the player's paddle (scales with power) */}
-      <mesh ref={charge} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[0.16, 0.22, 28]} />
-        <meshBasicMaterial color={palette.charge} transparent opacity={0.8} />
+      {/* predicted next-bounce ring on the table */}
+      <mesh ref={landing} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[0.07, 0.1, 28]} />
+        <meshBasicMaterial color={palette.landing} transparent opacity={0.85} />
       </mesh>
     </>
   );
