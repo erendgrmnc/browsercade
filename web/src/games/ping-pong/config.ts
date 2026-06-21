@@ -39,18 +39,18 @@ export const SHOT = {
 
 // Real ball↔racket collision (the player's returns reflect off the racket face).
 export const RACKET = {
-  restitution: 0.62, // energy kept on a bounce off the rubber
-  basePower: 3.0, // forward impulse even on a soft touch (so a return clears the net)
-  chargePower: 3.8, // extra impulse at full charge
-  upBias: 0.5, // how much the face points up — gives the return its arc
+  restitution: 0.68, // energy kept on a bounce off the rubber
+  basePower: 1.1, // small forward push so even a soft touch clears the net
+  chargePower: 2.2, // extra impulse at full charge
+  upBias: 0.34, // how much the face points up — gives the return its arc
   yawGain: 0.16, // how sharply a sideways swing angles the face
   maxYaw: 0.6, // max face yaw, radians
-  thickness: 0.06, // collider half-depth
-  catchPad: 0.05, // extra in-plane forgiveness beyond the blade
-  maxBallSpeed: 9.5,
-  maxSwing: 4.0, // cap on racket velocity fed into the ball
-  reachYMin: 0.06, // racket auto-tracks the ball's height within this band
-  reachYMax: 0.6,
+  swingTransfer: 0.5, // sideways swing → lateral english on the ball
+  thickness: 0.05, // collider half-depth
+  maxBallSpeed: 6.5, // hard cap on return speed
+  maxSwing: 2.5, // cap on racket velocity (limits height-chasing explosions)
+  reachYMin: 0.2, // keep the blade above the table; still catches low balls
+  reachYMax: 0.55,
 } as const;
 
 export const RULES = {

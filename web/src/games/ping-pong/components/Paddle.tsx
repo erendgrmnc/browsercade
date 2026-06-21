@@ -14,9 +14,10 @@ export function Paddle({ blade }: { blade: string }) {
         <torusGeometry args={[PADDLE.bladeRadius, 0.012, 8, 30]} />
         <meshStandardMaterial color={palette.rubberBack} roughness={0.7} />
       </mesh>
-      {/* handle */}
-      <mesh position={[0, -PADDLE.bladeRadius - 0.075, 0.02]} rotation={[0.25, 0, 0]} castShadow>
-        <boxGeometry args={[0.055, 0.17, 0.035]} />
+      {/* handle — extends back toward the player (along +Z) and slightly down, so
+          it never dips through the table */}
+      <mesh position={[0, -PADDLE.bladeRadius * 0.55, 0.13]} rotation={[Math.PI / 2 + 0.3, 0, 0]} castShadow>
+        <boxGeometry args={[0.05, 0.18, 0.035]} />
         <meshStandardMaterial color={palette.handle} roughness={0.6} />
       </mesh>
     </group>

@@ -8,7 +8,7 @@
 import { BALL, PADDLE, PHYSICS, RACKET, RULES, SHOT, TABLE } from "../config";
 import { AiController } from "./AiController";
 import { clamp, lerp } from "@/shared/math";
-import { add, addScaled, dot, integrate, length, normalize, scale, sub, vec3, type Vec3 } from "@/shared/vec3";
+import { addScaled, dot, integrate, length, normalize, scale, sub, vec3, type Vec3 } from "@/shared/vec3";
 import type { Phase, Score, Side } from "./types";
 
 type Events = {
@@ -218,17 +218,18 @@ export class PingPongGame {
     if (d < 0 || d > BALL.radius + RACKET.thickness) return; // not against the front face
 
     const inPlane = sub(rel, scale(n, d));
-    if (length(inPlane) > PADDLE.bladeRadius + BALL.radius + RACKET.catchPad) return; // off the blade
+    if (length(inPlane) > PADDLE.bladeRadius) return; // off the blade
 
-    const vRel = sub(this.vel, this.racketVel);
-    const vn = dot(vRel, n);
-    if (vn >= 0) return; // moving away — no contact
+    const vn = dot(this.vel, n);
+    if (vn >= 0) return; // not heading into the face
 
-    // reflect the relative velocity, restore the racket's own velocity, then push
-    // along the face normal by the swing/charge impulse.
-    const reflected = addScaled(vRel, n, -(1 + RACKET.restitution) * vn);
-    const impulse = RACKET.basePower + this.charge * RACKET.chargePower;
-    this.vel = addScaled(add(reflected, this.racketVel), n, impulse);
+    // Reflect the ball off the face, add a controlled forward push (base + charge),
+    // and a touch of sideways english from the swing. Direction comes from the
+    // face yaw (already baked into n); the swing only adds lateral english here.
+    let out = addScaled(this.vel, n, -(1 + RACKET.restitution) * vn);
+    out = addScaled(out, n, RACKET.basePower + this.charge * RACKET.chargePower);
+    out.x += this.racketVel.x * RACKET.swingTransfer;
+    this.vel = out;
     this.clampBallSpeed();
     this.pos = addScaled(center, n, BALL.radius + RACKET.thickness); // sit on the face
     this.registerHit("player");
