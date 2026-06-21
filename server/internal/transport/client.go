@@ -28,7 +28,7 @@ const (
 type Client struct {
 	conn *websocket.Conn
 	hub  *room.Hub
-	room *room.Room
+	room room.Room
 
 	send chan protocol.ServerMessage
 	done chan struct{}
@@ -71,7 +71,7 @@ func (c *Client) leaveCurrentRoom() {
 	}
 	c.room.Leave(c)
 	if c.room.IsEmpty() {
-		c.hub.Remove(c.room.Code)
+		c.hub.Remove(c.room.Code())
 	}
 	c.room = nil
 }
@@ -105,13 +105,13 @@ func (c *Client) handle(msg protocol.ClientMessage) {
 	switch msg.Type {
 	case protocol.MsgCreate:
 		c.leaveCurrentRoom()
-		r, ok := c.hub.Create()
+		r, ok := c.hub.Create(msg.Game)
 		if !ok {
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: "server is full, try again later"})
 			return
 		}
 		c.room = r
-		if _, err := r.Join(c); err != nil {
+		if err := r.Join(c); err != nil {
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: err.Error()})
 		}
 
@@ -121,21 +121,22 @@ func (c *Client) handle(msg protocol.ClientMessage) {
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: "room not found"})
 			return
 		}
+		// Guard against joining a room for a different game (shared code space).
+		if msg.Game != "" && msg.Game != r.Game() {
+			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: "room is for a different game"})
+			return
+		}
 		c.leaveCurrentRoom()
 		c.room = r
-		if _, err := r.Join(c); err != nil {
+		if err := r.Join(c); err != nil {
 			c.room = nil
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: err.Error()})
 		}
 
-	case protocol.MsgMove:
+	default:
+		// move/resign/relay → the room decides what it understands.
 		if c.room != nil {
-			c.room.Move(c, msg.From, msg.To, msg.Promotion)
-		}
-
-	case protocol.MsgResign:
-		if c.room != nil {
-			c.room.Resign(c)
+			c.room.Handle(c, msg)
 		}
 	}
 }

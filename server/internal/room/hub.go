@@ -17,17 +17,19 @@ const maxRooms = 5000
 // Hub owns all live rooms and hands out join codes.
 type Hub struct {
 	mu    sync.Mutex
-	rooms map[string]*Room
+	rooms map[string]Room
 }
 
 // NewHub creates an empty hub.
 func NewHub() *Hub {
-	return &Hub{rooms: make(map[string]*Room)}
+	return &Hub{rooms: make(map[string]Room)}
 }
 
-// Create makes a new room with a unique code and registers it. The bool is
-// false when the server is at capacity (maxRooms).
-func (h *Hub) Create() (*Room, bool) {
+// Create makes a new room for the given game type with a unique code and
+// registers it. An empty or "chess" game type yields an authoritative chess
+// room (the legacy chess client sends no game field); any other type yields a
+// game-agnostic relay room. The bool is false at capacity (maxRooms).
+func (h *Hub) Create(gameType string) (Room, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -42,13 +44,19 @@ func (h *Hub) Create() (*Room, bool) {
 			break
 		}
 	}
-	r := NewRoom(code)
+
+	var r Room
+	if gameType == "" || gameType == GameChess {
+		r = NewChessRoom(code)
+	} else {
+		r = NewRelayRoom(code, gameType)
+	}
 	h.rooms[code] = r
 	return r, true
 }
 
 // Get looks up a room by its code.
-func (h *Hub) Get(code string) (*Room, bool) {
+func (h *Hub) Get(code string) (Room, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	r, ok := h.rooms[code]

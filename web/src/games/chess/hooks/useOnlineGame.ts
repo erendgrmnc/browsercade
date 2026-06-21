@@ -10,6 +10,7 @@ import { RealtimeClient } from "@/games/chess/domain/online/RealtimeClient";
 import type { ServerMessage } from "@/games/chess/domain/online/messages";
 import type { BoardCell, PieceColor, Square } from "@/games/chess/domain/chess/types";
 import { SERVER_URL } from "@/shared/net/serverUrl";
+import { healthUrl, wakeServer } from "@/shared/net/wake";
 
 export type OnlinePhase = "idle" | "connecting" | "waiting" | "playing" | "ended";
 
@@ -203,24 +204,4 @@ function resultText(result: string | undefined, status: string | undefined, me: 
   const how = status === "resigned" ? " by resignation" : status === "checkmate" ? " by checkmate" : "";
   if (me !== null) return `${me === winner ? "You win" : "You lose"}${how}.`;
   return `${winner === "w" ? "White" : "Black"} wins${how}.`;
-}
-
-/** Derive the HTTP health URL from the WebSocket URL (ws→http, /ws→/health). */
-function healthUrl(wsUrl: string): string {
-  return wsUrl.replace(/^ws/, "http").replace(/\/ws\/?$/, "/health");
-}
-
-/** Poll /health until it answers OK (waking a sleeping free-tier server), or time out. */
-async function wakeServer(url: string, timeoutMs = 75_000): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (res.ok) return true;
-    } catch {
-      /* still asleep or unreachable — retry */
-    }
-    await new Promise((r) => setTimeout(r, 2500));
-  }
-  return false;
 }

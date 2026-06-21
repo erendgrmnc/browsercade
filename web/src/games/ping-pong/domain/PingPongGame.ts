@@ -220,29 +220,21 @@ export class PingPongGame {
     const inPlane = sub(rel, scale(n, d));
     if (length(inPlane) > PADDLE.bladeRadius) return; // off the blade
 
-    const vn = dot(this.vel, n);
-    if (vn >= 0) return; // not heading into the face
+    if (dot(this.vel, n) >= 0) return; // not heading into the face
 
-    // Reflect the ball off the face, add a controlled forward push (base + charge),
-    // and a touch of sideways english from the swing. Direction comes from the
-    // face yaw (already baked into n); the swing only adds lateral english here.
-    let out = addScaled(this.vel, n, -(1 + RACKET.restitution) * vn);
-    out = addScaled(out, n, RACKET.basePower + this.charge * RACKET.chargePower);
-    out.x += this.racketVel.x * RACKET.swingTransfer;
-    this.vel = out;
-    this.clampBallSpeed();
+    // Controlled return: send the ball INTO the AI's court rather than reflecting
+    // its (chaotic) incoming angle. Lateral aim comes from the swing (yaw); depth
+    // and pace come from charge. This is what keeps returns sensible and aimable.
+    const power = this.charge;
+    const aimX = clamp((this.racketYaw / RACKET.maxYaw) * TABLE.halfWidth * 0.82, -TABLE.halfWidth * 0.82, TABLE.halfWidth * 0.82);
+    const depthT = clamp(0.4 + power * 0.5, 0, 1);
     this.pos = addScaled(center, n, BALL.radius + RACKET.thickness); // sit on the face
-    this.registerHit("player");
+    this.launch("player", aimX, depthT, power);
   }
 
   /** Player racket face normal: toward the net, tilted up, yawed by the swing. */
   private playerNormal(): Vec3 {
     return normalize(vec3(Math.sin(this.racketYaw), RACKET.upBias, -Math.cos(this.racketYaw)));
-  }
-
-  private clampBallSpeed(): void {
-    const speed = length(this.vel);
-    if (speed > RACKET.maxBallSpeed) this.vel = scale(this.vel, RACKET.maxBallSpeed / speed);
   }
 
   private handleOut(): void {
