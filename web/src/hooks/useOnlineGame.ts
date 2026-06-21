@@ -35,6 +35,7 @@ const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 export function useOnlineGame(): OnlineGameState {
   const clientRef = useRef<RealtimeClient | null>(null);
   const myColorRef = useRef<PieceColor | null>(null);
+  const cancelledRef = useRef(false);
 
   const [phase, setPhase] = useState<OnlinePhase>("idle");
   const [roomCode, setRoomCode] = useState<string | null>(null);
@@ -83,14 +84,40 @@ export function useOnlineGame(): OnlineGameState {
 
   const connectThen = useCallback(
     (action: (c: RealtimeClient) => void) => {
-      const client = clientRef.current ?? new RealtimeClient(SERVER_URL);
-      clientRef.current = client;
+      cancelledRef.current = false;
       setPhase("connecting");
-      setNotice(null);
-      client.connect({
-        onMessage: handleMessage,
-        onOpen: () => action(client),
-        onError: () => setNotice("Could not reach the server. It may be waking up — try again."),
+      setNotice("Waking the server… the free tier can take ~30s on the first connection.");
+
+      // Probe /health first: this wakes a sleeping free-tier server and confirms
+      // reachability, so we only open the socket once the server can answer.
+      void wakeServer(healthUrl(SERVER_URL)).then((reachable) => {
+        if (cancelledRef.current) return;
+        if (!reachable) {
+          setNotice("Couldn't reach the server. Please try again in a moment.");
+          setPhase("idle");
+          return;
+        }
+        setNotice(null);
+        const client = new RealtimeClient(SERVER_URL);
+        clientRef.current = client;
+        let opened = false;
+        client.connect({
+          onMessage: handleMessage,
+          onOpen: () => {
+            opened = true;
+            setNotice(null);
+            action(client);
+          },
+          onError: () => {},
+          onClose: () => {
+            if (opened || cancelledRef.current) return;
+            // Health passed but the socket was refused → almost always an origin block.
+            setNotice(
+              "The server refused the connection. If you're running locally, add this page's origin to the server's ALLOWED_ORIGINS.",
+            );
+            setPhase("idle");
+          },
+        });
       });
     },
     [handleMessage],
@@ -124,6 +151,7 @@ export function useOnlineGame(): OnlineGameState {
   const resign = () => clientRef.current?.resign();
 
   const leave = useCallback(() => {
+    cancelledRef.current = true;
     clientRef.current?.close();
     clientRef.current = null;
     myColorRef.current = null;
@@ -175,4 +203,24 @@ function resultText(result: string | undefined, status: string | undefined, me: 
   const how = status === "resigned" ? " by resignation" : status === "checkmate" ? " by checkmate" : "";
   if (me !== null) return `${me === winner ? "You win" : "You lose"}${how}.`;
   return `${winner === "w" ? "White" : "Black"} wins${how}.`;
+}
+
+/** Derive the HTTP health URL from the WebSocket URL (ws→http, /ws→/health). */
+function healthUrl(wsUrl: string): string {
+  return wsUrl.replace(/^ws/, "http").replace(/\/ws\/?$/, "/health");
+}
+
+/** Poll /health until it answers OK (waking a sleeping free-tier server), or time out. */
+async function wakeServer(url: string, timeoutMs = 75_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) return true;
+    } catch {
+      /* still asleep or unreachable — retry */
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return false;
 }

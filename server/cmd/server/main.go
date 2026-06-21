@@ -22,6 +22,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", transport.Handler(hub, allowedOrigins))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		// Readable cross-origin so the web client can probe readiness (wake the
+		// free-tier server) before opening a WebSocket.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
