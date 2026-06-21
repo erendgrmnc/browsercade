@@ -12,7 +12,7 @@ COPY . .
 RUN go build -ldflags="-s -w" -o /out/server ./cmd/server
 
 # --- runtime stage ---
-FROM gcr.io/distroless/static-nonroot
+FROM gcr.io/distroless/static:nonroot
 COPY --from=build /out/server /server
 # Render injects $PORT and the app binds to it; EXPOSE is just documentation.
 EXPOSE 8080
