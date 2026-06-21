@@ -1,72 +1,69 @@
-# chess3d
+# browsercade
 
-Browser-playable **3D chess**. Play against a hand-written AI engine now; online
-multiplayer over WebSocket (Go backend) is in progress.
+A little **arcade of 3D browser games** — built with React Three Fiber, with
+server-authoritative online multiplayer over a Go WebSocket backend.
 
-> Built as a portfolio demo around real-time / networked systems — the AI runs in
-> a Web Worker, and the architecture is set up so multiplayer slots in as a new
-> implementation of the same `Opponent` seam rather than a rewrite.
+> Each game is a self-contained module registered in a catalogue; the arcade
+> shell lazy-loads a game's (heavy, 3D) bundle only when you open it. Online play
+> is a shared layer, so adding a multiplayer game doesn't mean rebuilding netcode.
 
----
+## Games
 
-## Features
-
-- ♟️ **3D board** rendered with React Three Fiber — orbit the camera, click a piece to see legal moves, with selection / last-move / capture / check highlighting.
-- 🤖 **Play vs AI** — a from-scratch **negamax search with alpha-beta pruning** and a material + piece-square evaluation, run **off the UI thread in a Web Worker**. Difficulty = search depth.
-- 🎚️ Play as White or Black, three difficulty levels, undo, board flip, live move list.
-- 🌐 **Online multiplayer** — play a friend via a 4-letter room code over a server-authoritative Go WebSocket backend (`server/`). The server validates every move.
+| Game | Status | Notes |
+| --- | --- | --- |
+| ♟️ **3D Chess** | ✅ Playable | vs a hand-written negamax engine (Web Worker), or a friend online (4-letter room code, server validates every move). |
+| 🏓 **Ping Pong** | 🚧 Planned | Table-tennis rally vs AI / online. |
+| 🏀 **Basketball Hoop** | 🚧 Planned | Flick-to-shoot, on a shot clock. |
+| 🍺 **Beer Pong** | 🚧 Planned | Arc the ball into the cups. |
+| 🎱 **Pool** | 🚧 Planned | 8-ball on a full physics table. |
 
 ## Tech stack
 
 | Area | Tech |
 | --- | --- |
-| Frontend | React 18, TypeScript, Vite |
+| Frontend | React 18, TypeScript, Vite, React Router |
 | 3D | three.js, React Three Fiber, drei |
-| Chess rules | [chess.js](https://github.com/jhlywa/chess.js) |
-| AI | Hand-written negamax + alpha-beta (no external engine) |
-| Multiplayer (WIP) | Go, WebSocket |
+| Multiplayer | Go, WebSocket (server-authoritative) |
 
 ## Monorepo layout
 
 ```
-chess3d/
-├── web/      # React + Vite frontend (this is the playable app)
-└── server/   # Go WebSocket server for online multiplayer (WIP)
+browsercade/
+├── web/      # React + Vite frontend (the arcade + games)
+└── server/   # Go WebSocket multiplayer server
 ```
 
 ### Frontend architecture (`web/src`)
 
-The code is split so rules, AI, and UI don't bleed into each other — and so the
-opponent is an abstraction, not a hard-coded local engine:
-
 ```
-domain/
-  chess/      GameController (wraps chess.js), types, square helpers   ← framework-agnostic
-  ai/         Engine interface + NegamaxEngine, evaluation, move ordering, PSTs
-  opponent/   Opponent interface, LocalAIOpponent (Web Worker)         ← DI seam
-workers/      ai.worker.ts — runs the engine off the main thread
-hooks/        useChessGame — bridges domain ↔ React
-components/   board/ (3D scene) + ui/ (reusable controls) + ChessGame
-config/       theme (palette)
+arcade/         registry (game catalogue) + Home + routing shell
+games/
+  chess/        a self-contained game module (default-exports its root component)
+    domain/     framework-agnostic rules/AI (GameController, Engine, Opponent, …)
+    components/ 3D board scene + chess UI
+    hooks/      useChessGame / useOnlineGame
+    workers/    ai.worker.ts (engine off the main thread)
+  ping-pong/    (planned) — same module shape
+  …
+shared/
+  ui/           cross-game controls (Button, SegmentedControl)
+  net/          shared multiplayer config
+App.tsx         routes: "/" → arcade, "/play/:id" → a game
 ```
 
 Why it's shaped this way:
 
-- **Single responsibility** — `GameController` knows the rules, `NegamaxEngine` knows search, the hook knows React. None know about each other's concerns.
-- **Dependency inversion** — `useChessGame` depends on the `Opponent` interface. `LocalAIOpponent` (Web Worker) satisfies it today; a `RemoteOpponent` (WebSocket) can satisfy it for multiplayer with **no changes to the UI or game flow**.
-- **Open/closed** — a stronger AI (e.g. Stockfish WASM) is a new `Engine` implementation; nothing else changes.
+- **A game is a module.** Adding one = a folder under `games/` + one entry in `arcade/registry.ts`. The shell does the rest (routing, lazy-loading).
+- **Single responsibility / DIP.** In chess, `GameController` owns the rules, `NegamaxEngine` owns search, the hook owns React, and the opponent is an `Opponent` interface — local AI today, online over WebSocket as a parallel implementation.
+- **Code-split by game.** The arcade home is tiny; each game's Three.js bundle loads on demand.
 
 ## Getting started
 
-Requires **Node 18+** (and **Go 1.22+** later, for the multiplayer server).
+Requires **Node 18+** (and **Go 1.22+** for the multiplayer server).
 
 ```bash
-# clone
-git clone https://github.com/erendgrmnc/chess3d.git
-cd chess3d
-
-# run the frontend
-cd web
+git clone https://github.com/erendgrmnc/browsercade.git
+cd browsercade/web
 npm install
 npm run dev          # http://localhost:5173
 ```
@@ -76,28 +73,28 @@ Build for production:
 ```bash
 cd web
 npm run build        # outputs to web/dist
-npm run preview      # serve the production build locally
+npm run preview
 ```
 
-The **Online** mode connects to the multiplayer server at `VITE_SERVER_URL`
-(see `web/.env.example`). It defaults to the deployed server, so online play
-works out of the box; set it to `ws://localhost:8080/ws` to use a local server.
+Online play connects to `VITE_SERVER_URL` (see `web/.env.example`), defaulting to
+the deployed server. Set it to `ws://localhost:8080/ws` to use a local server.
 
-### Multiplayer server (WIP)
+### Multiplayer server
 
 ```bash
 cd server
-go run ./cmd/server  # starts the WebSocket server (default :8080)
+go run ./cmd/server  # WebSocket server on :8080 (see server/README.md)
 ```
 
 ## Roadmap
 
-- [x] 3D board + interaction (React Three Fiber)
-- [x] Local AI opponent (negamax + alpha-beta) in a Web Worker
-- [x] Server-authoritative online multiplayer (Go + WebSocket): rooms, matchmaking, move validation
-- [ ] Reconnection / resume after disconnect
-- [ ] Time controls (chess clocks)
-- [ ] glTF piece models, promotion picker
+- [x] Arcade shell: game registry, routing, lazy-loaded game modules
+- [x] **Chess** — 3D board, negamax AI (Web Worker), server-authoritative online play
+- [ ] **Ping Pong** (3D physics, AI + online)
+- [ ] **Basketball Hoop** (3D physics)
+- [ ] **Beer Pong** (3D physics, online)
+- [ ] **Pool** (3D physics, online)
+- [ ] Generalize the Go server to host multiple real-time game types
 
 ## License
 

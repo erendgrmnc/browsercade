@@ -5,7 +5,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/erendgrmnc/chess3d/server/internal/room"
+	"github.com/erendgrmnc/browsercade/server/internal/room"
 )
 
 // Handler returns an http.HandlerFunc that upgrades requests to WebSocket and

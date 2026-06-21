@@ -1,4 +1,4 @@
-// Command server runs the chess3d multiplayer WebSocket server.
+// Command server runs the browsercade multiplayer WebSocket server.
 package main
 
 import (
@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/erendgrmnc/chess3d/server/internal/room"
-	"github.com/erendgrmnc/chess3d/server/internal/transport"
+	"github.com/erendgrmnc/browsercade/server/internal/room"
+	"github.com/erendgrmnc/browsercade/server/internal/transport"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 	if len(allowedOrigins) == 0 {
 		log.Print("warning: ALLOWED_ORIGINS not set — accepting WebSocket connections from any origin")
 	}
-	log.Printf("chess3d server listening on %s (ws path: /ws)", listenAddr)
+	log.Printf("browsercade server listening on %s (ws path: /ws)", listenAddr)
 	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		log.Fatal(err)
 	}

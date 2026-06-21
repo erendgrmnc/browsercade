@@ -1,6 +1,7 @@
-# chess3d server
+# browsercade server
 
-Server-authoritative multiplayer for chess3d, over WebSocket.
+Server-authoritative multiplayer for browsercade, over WebSocket. (Chess today;
+structured to host more game types.)
 
 The server is the single source of truth: it owns the game, **validates every
 move** (an illegal or forged move is rejected), and broadcasts authoritative

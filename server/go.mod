@@ -1,4 +1,4 @@
-module github.com/erendgrmnc/chess3d/server
+module github.com/erendgrmnc/browsercade/server
 
 go 1.22
 

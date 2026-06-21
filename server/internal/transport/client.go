@@ -8,8 +8,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/erendgrmnc/chess3d/server/internal/protocol"
-	"github.com/erendgrmnc/chess3d/server/internal/room"
+	"github.com/erendgrmnc/browsercade/server/internal/protocol"
+	"github.com/erendgrmnc/browsercade/server/internal/room"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/erendgrmnc/chess3d/server/internal/game"
-	"github.com/erendgrmnc/chess3d/server/internal/protocol"
+	"github.com/erendgrmnc/browsercade/server/internal/game"
+	"github.com/erendgrmnc/browsercade/server/internal/protocol"
 )
 
 // ErrRoomFull is returned when a third player tries to join a 1v1 room.
