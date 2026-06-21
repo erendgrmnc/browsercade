@@ -11,11 +11,11 @@ server-authoritative online multiplayer over a Go WebSocket backend.
 
 | Game | Status | Notes |
 | --- | --- | --- |
-| ♟️ **3D Chess** | ✅ Playable | vs a hand-written negamax engine (Web Worker), or a friend online (4-letter room code, server validates every move). |
-| 🏓 **Ping Pong** | 🚧 Planned | Table-tennis rally vs AI / online. |
-| 🏀 **Basketball Hoop** | 🚧 Planned | Flick-to-shoot, on a shot clock. |
-| 🍺 **Beer Pong** | 🚧 Planned | Arc the ball into the cups. |
-| 🎱 **Pool** | 🚧 Planned | 8-ball on a full physics table. |
+| ♟️ **3D Chess** | ✅ Playable | vs a hand-written negamax engine (Web Worker), or a friend online (server validates every move). |
+| 🏓 **Ping Pong** | ✅ Playable | Table-tennis rally vs AI; mouse moves your paddle. |
+| 🏀 **Basketball Hoop** | ✅ Playable | Aim + power with the mouse, click to shoot, on a 60-second clock. |
+| 🍺 **Beer Pong** | ✅ Playable | Arc the ball into the cups; clear the whole rack. |
+| 🎱 **Pool** | ✅ Playable | Break and sink all 15 — hand-rolled 2D physics, rendered in 3D. |
 
 ## Tech stack
 
@@ -90,10 +90,11 @@ go run ./cmd/server  # WebSocket server on :8080 (see server/README.md)
 
 - [x] Arcade shell: game registry, routing, lazy-loaded game modules
 - [x] **Chess** — 3D board, negamax AI (Web Worker), server-authoritative online play
-- [ ] **Ping Pong** (3D physics, AI + online)
-- [ ] **Basketball Hoop** (3D physics)
-- [ ] **Beer Pong** (3D physics, online)
-- [ ] **Pool** (3D physics, online)
+- [x] **Ping Pong** — 3D, vs AI
+- [x] **Basketball Hoop** — 3D, mouse aim, shot clock
+- [x] **Beer Pong** — 3D, clear the rack
+- [x] **Pool** — 3D render + hand-rolled 2D physics, sink all 15
+- [ ] Online multiplayer for the arcade games (host-authoritative relay)
 - [ ] Generalize the Go server to host multiple real-time game types
 
 ## License

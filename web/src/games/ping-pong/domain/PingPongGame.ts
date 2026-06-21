@@ -6,7 +6,7 @@
  */
 import { BALL, PADDLE, RULES, TABLE } from "../config";
 import { AiController } from "./AiController";
-import { approach, clamp, lerp } from "./math";
+import { approach, clamp, lerp } from "@/shared/math";
 import type { Phase, Score, Side } from "./types";
 
 type Events = { onScore?: (score: Score) => void; onPhase?: (phase: Phase) => void };

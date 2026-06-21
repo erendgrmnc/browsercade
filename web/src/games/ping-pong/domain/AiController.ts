@@ -1,4 +1,4 @@
-import { lerp } from "./math";
+import { lerp } from "@/shared/math";
 
 /**
  * Decides where the AI paddle wants to be. It commits to the ball more strongly
