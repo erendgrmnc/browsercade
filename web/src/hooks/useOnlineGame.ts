@@ -1,0 +1,178 @@
+/**
+ * Online multiplayer game state. Unlike useChessGame (local AI), the server is
+ * authoritative: the client sends move intents and renders whatever board state
+ * the server broadcasts back. A GameController rebuilt from the server's FEN is
+ * used purely to render and to compute legal targets for the local player.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GameController } from "@/domain/chess/GameController";
+import { RealtimeClient } from "@/domain/online/RealtimeClient";
+import type { ServerMessage } from "@/domain/online/messages";
+import type { BoardCell, PieceColor, Square } from "@/domain/chess/types";
+import { SERVER_URL } from "@/config/server";
+
+export type OnlinePhase = "idle" | "connecting" | "waiting" | "playing" | "ended";
+
+export type OnlineGameState = {
+  phase: OnlinePhase;
+  roomCode: string | null;
+  myColor: PieceColor | null;
+  board: BoardCell[][];
+  selected: Square | null;
+  legalTargets: Square[];
+  lastMove: { from: Square; to: Square } | null;
+  notice: string | null;
+  isMyTurn: boolean;
+  createGame: () => void;
+  joinGame: (code: string) => void;
+  onSquare: (square: Square) => void;
+  resign: () => void;
+  leave: () => void;
+};
+
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+export function useOnlineGame(): OnlineGameState {
+  const clientRef = useRef<RealtimeClient | null>(null);
+  const myColorRef = useRef<PieceColor | null>(null);
+
+  const [phase, setPhase] = useState<OnlinePhase>("idle");
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [myColor, setMyColor] = useState<PieceColor | null>(null);
+  const [fen, setFen] = useState<string>(START_FEN);
+  const [turn, setTurn] = useState<PieceColor>("w");
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Square | null>(null);
+
+  // A fresh controller per position; only used for rendering + legal targets.
+  const controller = useMemo(() => new GameController(fen), [fen]);
+
+  const handleMessage = useCallback((m: ServerMessage) => {
+    switch (m.type) {
+      case "joined":
+        myColorRef.current = m.color ?? null;
+        setMyColor(m.color ?? null);
+        setRoomCode(m.room ?? null);
+        setPhase(m.color === "b" ? "playing" : "waiting");
+        setNotice(m.color === "w" ? "Share the room code to start." : null);
+        break;
+      case "opponentJoined":
+        setPhase("playing");
+        setNotice(null);
+        break;
+      case "state":
+        if (m.fen) setFen(m.fen);
+        if (m.turn) setTurn(m.turn);
+        setLastMove(m.lastMove ?? null);
+        setSelected(null);
+        break;
+      case "opponentLeft":
+        setPhase("ended");
+        setNotice("Opponent left the game.");
+        break;
+      case "gameOver":
+        setPhase("ended");
+        setNotice(resultText(m.result, m.status, myColorRef.current));
+        break;
+      case "error":
+        setNotice(m.message ?? "Something went wrong.");
+        break;
+    }
+  }, []);
+
+  const connectThen = useCallback(
+    (action: (c: RealtimeClient) => void) => {
+      const client = clientRef.current ?? new RealtimeClient(SERVER_URL);
+      clientRef.current = client;
+      setPhase("connecting");
+      setNotice(null);
+      client.connect({
+        onMessage: handleMessage,
+        onOpen: () => action(client),
+        onError: () => setNotice("Could not reach the server. It may be waking up — try again."),
+      });
+    },
+    [handleMessage],
+  );
+
+  const createGame = useCallback(() => connectThen((c) => c.create()), [connectThen]);
+
+  const joinGame = useCallback(
+    (code: string) => {
+      const room = code.trim().toUpperCase();
+      if (room) connectThen((c) => c.join(room));
+    },
+    [connectThen],
+  );
+
+  const onSquare = (square: Square) => {
+    const me = myColorRef.current;
+    if (phase !== "playing" || !me || controller.isGameOver || controller.turn !== me) return;
+
+    if (selected && controller.legalTargets(selected).includes(square)) {
+      const promotion = isPromotion(controller, selected, square, me) ? "q" : undefined;
+      clientRef.current?.move(selected, square, promotion);
+      setSelected(null); // optimistic clear; authoritative state arrives next
+      return;
+    }
+
+    const piece = controller.pieceAt(square);
+    setSelected(piece && piece.color === me ? square : null);
+  };
+
+  const resign = () => clientRef.current?.resign();
+
+  const leave = useCallback(() => {
+    clientRef.current?.close();
+    clientRef.current = null;
+    myColorRef.current = null;
+    setPhase("idle");
+    setRoomCode(null);
+    setMyColor(null);
+    setFen(START_FEN);
+    setTurn("w");
+    setLastMove(null);
+    setSelected(null);
+    setNotice(null);
+  }, []);
+
+  // Close the socket if the component unmounts (e.g. switching game modes).
+  useEffect(() => () => clientRef.current?.close(), []);
+
+  return {
+    phase,
+    roomCode,
+    myColor,
+    board: controller.board(),
+    selected,
+    legalTargets: selected ? controller.legalTargets(selected) : [],
+    lastMove,
+    notice,
+    isMyTurn: phase === "playing" && myColor !== null && turn === myColor,
+    createGame,
+    joinGame,
+    onSquare,
+    resign,
+    leave,
+  };
+}
+
+function isPromotion(controller: GameController, from: Square, to: Square, me: PieceColor): boolean {
+  const piece = controller.pieceAt(from);
+  if (!piece || piece.type !== "p") return false;
+  const rank = to[1];
+  return (me === "w" && rank === "8") || (me === "b" && rank === "1");
+}
+
+function resultText(result: string | undefined, status: string | undefined, me: PieceColor | null): string {
+  let winner: PieceColor | null = null;
+  if (result === "1-0") winner = "w";
+  else if (result === "0-1") winner = "b";
+
+  if (!winner) return "Draw.";
+
+  const how = status === "resigned" ? " by resignation" : status === "checkmate" ? " by checkmate" : "";
+  if (me !== null) return `${me === winner ? "You win" : "You lose"}${how}.`;
+  return `${winner === "w" ? "White" : "Black"} wins${how}.`;
+}

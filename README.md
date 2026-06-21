@@ -14,7 +14,7 @@ multiplayer over WebSocket (Go backend) is in progress.
 - ♟️ **3D board** rendered with React Three Fiber — orbit the camera, click a piece to see legal moves, with selection / last-move / capture / check highlighting.
 - 🤖 **Play vs AI** — a from-scratch **negamax search with alpha-beta pruning** and a material + piece-square evaluation, run **off the UI thread in a Web Worker**. Difficulty = search depth.
 - 🎚️ Play as White or Black, three difficulty levels, undo, board flip, live move list.
-- 🌐 **Online multiplayer** (Go + WebSocket, server-authoritative) — *in progress, see `server/`*.
+- 🌐 **Online multiplayer** — play a friend via a 4-letter room code over a server-authoritative Go WebSocket backend (`server/`). The server validates every move.
 
 ## Tech stack
 
@@ -79,6 +79,10 @@ npm run build        # outputs to web/dist
 npm run preview      # serve the production build locally
 ```
 
+The **Online** mode connects to the multiplayer server at `VITE_SERVER_URL`
+(see `web/.env.example`). It defaults to the deployed server, so online play
+works out of the box; set it to `ws://localhost:8080/ws` to use a local server.
+
 ### Multiplayer server (WIP)
 
 ```bash
@@ -90,7 +94,8 @@ go run ./cmd/server  # starts the WebSocket server (default :8080)
 
 - [x] 3D board + interaction (React Three Fiber)
 - [x] Local AI opponent (negamax + alpha-beta) in a Web Worker
-- [ ] Server-authoritative online multiplayer (Go + WebSocket): rooms, move validation, reconnection
+- [x] Server-authoritative online multiplayer (Go + WebSocket): rooms, matchmaking, move validation
+- [ ] Reconnection / resume after disconnect
 - [ ] Time controls (chess clocks)
 - [ ] glTF piece models, promotion picker
 
