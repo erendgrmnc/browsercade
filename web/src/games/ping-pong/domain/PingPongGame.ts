@@ -122,10 +122,11 @@ export class PingPongGame {
     this.forwardSpeed = lerp(this.forwardSpeed, Math.max((this.playerZ - newZ) * inv, 0), SWING.velSmooth);
     this.lateralSpeed = lerp(this.lateralSpeed, (newX - this.playerX) * inv, SWING.velSmooth);
 
-    // Roll is bound to lateral POSITION: centre = upright, full left/right rolls
-    // the racket ~90° (handle swings to that side). The blade keeps facing the net.
+    // Roll is bound to lateral POSITION: moving right tilts the racket right, moving
+    // left tilts it left (the blade keeps facing the net). Visual only; aim is read
+    // from position so the two stay independent.
     const posT = newX / PADDLE.xRange; // -1..1
-    this.racketRoll = posT * PADDLE.maxRoll;
+    this.racketRoll = -posT * PADDLE.maxRoll;
 
     this.playerX = newX;
     this.playerZ = newZ;
@@ -261,7 +262,7 @@ export class PingPongGame {
    * ball to angle it). Speed/depth come from the forward flick (power).
    */
   private launchFromFace(power: number): void {
-    const posT = this.racketRoll / PADDLE.maxRoll; // -1..1, your lateral position
+    const posT = this.playerX / PADDLE.xRange; // -1..1, your lateral position
     const baseAim = posT * TABLE.halfWidth * SHOT.aimSideFrac;
     const swingAim = clamp(this.lateralSpeed * SWING.lateralAimGain, -SWING.maxSwingAim, SWING.maxSwingAim);
     const aimX = clamp(baseAim + swingAim, -TABLE.halfWidth * 0.92, TABLE.halfWidth * 0.92);
@@ -284,7 +285,7 @@ export class PingPongGame {
     let targetX: number;
     if (side === "player") {
       power = Math.max(SWING.serveMinPower, this.powerFromForward(this.servePeakForward));
-      targetX = clamp((this.racketRoll / PADDLE.maxRoll) * TABLE.halfWidth * 0.55, -TABLE.halfWidth * 0.6, TABLE.halfWidth * 0.6);
+      targetX = clamp((this.playerX / PADDLE.xRange) * TABLE.halfWidth * 0.55, -TABLE.halfWidth * 0.6, TABLE.halfWidth * 0.6);
     } else {
       power = lerp(0.3, 0.6, this.difficulty);
       targetX = (rand() - 0.5) * TABLE.halfWidth * 0.8;
