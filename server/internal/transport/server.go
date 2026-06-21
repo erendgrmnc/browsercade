@@ -10,10 +10,26 @@ import (
 
 // Handler returns an http.HandlerFunc that upgrades requests to WebSocket and
 // runs a Client against the given hub.
-func Handler(hub *room.Hub) http.HandlerFunc {
+//
+// allowedOrigins is a browser-origin allowlist that guards against cross-site
+// WebSocket hijacking. If empty (e.g. local dev), all origins are accepted.
+func Handler(hub *room.Hub, allowedOrigins []string) http.HandlerFunc {
+	allow := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		allow[o] = true
+	}
+
 	upgrader := websocket.Upgrader{
-		// Demo: allow any origin. Tighten this to the deployed web origin in prod.
-		CheckOrigin: func(_ *http.Request) bool { return true },
+		CheckOrigin: func(r *http.Request) bool {
+			if len(allow) == 0 {
+				return true // unconfigured (dev): accept any origin
+			}
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // non-browser client: no Origin header to forge
+			}
+			return allow[origin]
+		},
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {

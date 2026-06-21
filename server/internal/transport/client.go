@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,7 +14,13 @@ import (
 
 const (
 	sendBuffer = 16
-	pingPeriod = 30 * time.Second
+	// maxMessageBytes caps inbound frames; a move message is a few dozen bytes,
+	// so this bounds memory and blocks oversized-payload DoS.
+	maxMessageBytes = 4096
+	// pongWait is how long we wait for a pong before treating the peer as dead;
+	// pingPeriod must be shorter so a ping always precedes the deadline.
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
 	writeWait  = 10 * time.Second
 )
 
@@ -56,17 +63,34 @@ func (c *Client) close() {
 	}
 }
 
+// leaveCurrentRoom removes the client from its room (if any) and reclaims the
+// room once empty, so repeatedly creating/joining rooms cannot leak them.
+func (c *Client) leaveCurrentRoom() {
+	if c.room == nil {
+		return
+	}
+	c.room.Leave(c)
+	if c.room.IsEmpty() {
+		c.hub.Remove(c.room.Code)
+	}
+	c.room = nil
+}
+
 // readPump reads client messages until the connection closes, then cleans up.
 func (c *Client) readPump() {
 	defer func() {
-		if c.room != nil {
-			c.room.Leave(c)
-			if c.room.IsEmpty() {
-				c.hub.Remove(c.room.Code)
-			}
+		if r := recover(); r != nil {
+			log.Printf("recovered from client panic: %v", r)
 		}
+		c.leaveCurrentRoom()
 		c.close()
 	}()
+
+	c.conn.SetReadLimit(maxMessageBytes)
+	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error {
+		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	})
 
 	for {
 		var msg protocol.ClientMessage
@@ -80,8 +104,14 @@ func (c *Client) readPump() {
 func (c *Client) handle(msg protocol.ClientMessage) {
 	switch msg.Type {
 	case protocol.MsgCreate:
-		c.room = c.hub.Create()
-		if _, err := c.room.Join(c); err != nil {
+		c.leaveCurrentRoom()
+		r, ok := c.hub.Create()
+		if !ok {
+			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: "server is full, try again later"})
+			return
+		}
+		c.room = r
+		if _, err := r.Join(c); err != nil {
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: err.Error()})
 		}
 
@@ -91,8 +121,10 @@ func (c *Client) handle(msg protocol.ClientMessage) {
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: "room not found"})
 			return
 		}
+		c.leaveCurrentRoom()
 		c.room = r
 		if _, err := r.Join(c); err != nil {
+			c.room = nil
 			c.Send(protocol.ServerMessage{Type: protocol.MsgError, Message: err.Error()})
 		}
 
@@ -109,18 +141,25 @@ func (c *Client) handle(msg protocol.ClientMessage) {
 }
 
 // writePump delivers queued messages and sends periodic pings to keep the
-// connection alive through proxies.
+// connection alive and to detect dead peers.
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
-	defer ticker.Stop()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("recovered from writePump panic: %v", r)
+		}
+		ticker.Stop()
+	}()
 
 	for {
 		select {
 		case m := <-c.send:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteJSON(m); err != nil {
 				return
 			}
 		case <-ticker.C:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
 				return
 			}

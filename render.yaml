@@ -1,0 +1,19 @@
+# Render Blueprint — deploys the Go multiplayer server as a free web service.
+# In Render: New → Blueprint → pick this repo. Render reads this file.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: chess3d-server
+    runtime: docker
+    plan: free
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Comma-separated browser origins allowed to open WebSockets (CSWSH guard).
+      # Set this to your deployed frontend, e.g. https://your-site.vercel.app
+      # Leave unset only for testing — unset accepts ALL origins.
+      - key: ALLOWED_ORIGINS
+        sync: false

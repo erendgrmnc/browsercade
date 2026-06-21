@@ -10,6 +10,10 @@ const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 const codeLength = 4
 
+// maxRooms bounds memory on small/free hosts. Reaching it makes Create fail
+// rather than letting room creation grow without limit.
+const maxRooms = 5000
+
 // Hub owns all live rooms and hands out join codes.
 type Hub struct {
 	mu    sync.Mutex
@@ -21,10 +25,15 @@ func NewHub() *Hub {
 	return &Hub{rooms: make(map[string]*Room)}
 }
 
-// Create makes a new room with a unique code and registers it.
-func (h *Hub) Create() *Room {
+// Create makes a new room with a unique code and registers it. The bool is
+// false when the server is at capacity (maxRooms).
+func (h *Hub) Create() (*Room, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if len(h.rooms) >= maxRooms {
+		return nil, false
+	}
 
 	var code string
 	for {
@@ -35,7 +44,7 @@ func (h *Hub) Create() *Room {
 	}
 	r := NewRoom(code)
 	h.rooms[code] = r
-	return r
+	return r, true
 }
 
 // Get looks up a room by its code.

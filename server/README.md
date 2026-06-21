@@ -24,6 +24,31 @@ go run ./cmd/server -addr :9000
 
 Health check: `GET /health` → `ok`.
 
+## Configuration
+
+| Env var | Default | Purpose |
+| ------- | ------- | ------- |
+| `PORT` | `8080` | Port to listen on. Set automatically by Render and most PaaS hosts. |
+| `ALLOWED_ORIGINS` | *(unset)* | Comma-separated browser origins allowed to open WebSockets (CSWSH guard). **Unset = accept any origin** (dev only). In production set it to your frontend, e.g. `https://your-site.vercel.app`. |
+
+The `-addr` flag, if given, overrides `PORT`.
+
+## Deploy to Render (free)
+
+This repo includes a [`render.yaml`](../render.yaml) blueprint and a `Dockerfile`.
+
+1. Push the repo to GitHub.
+2. In Render: **New → Blueprint**, select the repo. Render reads `render.yaml`
+   and provisions a free Docker web service from `server/`.
+3. After the first deploy, set **`ALLOWED_ORIGINS`** (Environment tab) to your
+   deployed frontend origin and redeploy.
+4. Your endpoint is `wss://<service>.onrender.com/ws` — point the web client at it.
+
+Notes:
+- Render's free tier **sleeps after ~15 min idle**; the first request then cold-starts (~30–60s). Games in progress are unaffected (not idle).
+- Render terminates TLS, so clients connect over `wss://` automatically.
+- Run `go mod tidy` and commit `go.sum` to pin dependencies and speed up builds.
+
 ## Layout
 
 ```
