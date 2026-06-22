@@ -1,10 +1,34 @@
+import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Scene } from "./components/Scene";
 import { BeerPongHud } from "./components/BeerPongHud";
+import { OnlineBeerPong } from "./components/online/OnlineBeerPong";
 import { useBeerPong } from "./hooks/useBeerPong";
+import { ModeSelect, type ModeOption } from "@/shared/ui/ModeSelect";
+import { UserIcon, WifiIcon } from "@/shared/ui/icons";
 
-/** The beer-pong game module's entry point. */
+type Mode = "solo" | "online";
+
+const MODES: ModeOption<Mode>[] = [
+  { label: "Solo", value: "solo", icon: <UserIcon /> },
+  { label: "Online", value: "online", icon: <WifiIcon /> },
+];
+
+/** The beer-pong game module's entry point: a toggle between solo and online play. */
 export default function BeerPongApp() {
+  const [mode, setMode] = useState<Mode>("solo");
+
+  return (
+    <div className="flex flex-col gap-6">
+      <ModeSelect options={MODES} value={mode} onChange={setMode} />
+      <div key={mode} className="bc-fade">
+        {mode === "solo" ? <SoloBeerPong /> : <OnlineBeerPong />}
+      </div>
+    </div>
+  );
+}
+
+function SoloBeerPong() {
   const bp = useBeerPong();
 
   return (

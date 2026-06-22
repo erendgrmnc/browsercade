@@ -11,6 +11,12 @@ export default {
         faint: "#6c7482",
         hairline: "#272d38",
         accent: "#2348ff",
+        glow: "#6b8cff",
+      },
+      fontFamily: {
+        sans: ['"Sora"', "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "monospace"],
+        display: ['"Unbounded"', '"Sora"', "ui-sans-serif", "sans-serif"],
       },
       letterSpacing: {
         mono: "0.04em",

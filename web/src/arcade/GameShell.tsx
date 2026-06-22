@@ -1,6 +1,7 @@
 import { Suspense, lazy, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { findGame } from "./registry";
+import "@/shared/ui/controls.css";
 
 /** Route wrapper for a single game: resolves the slug, lazy-loads the module. */
 export function GameShell() {
@@ -26,9 +27,19 @@ export function GameShell() {
 
       {game && (
         <>
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight md:text-3xl">{game.title}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{game.blurb}</p>
-          <div className="mt-8">
+          <h1
+            className="bc-rise mt-6 text-2xl font-semibold tracking-tight md:text-3xl"
+            style={{ animationDelay: "0.04s" }}
+          >
+            {game.title}
+          </h1>
+          <p
+            className="bc-rise mt-2 max-w-2xl text-sm leading-relaxed text-muted"
+            style={{ animationDelay: "0.12s" }}
+          >
+            {game.blurb}
+          </p>
+          <div className="bc-rise mt-8" style={{ animationDelay: "0.2s" }}>
             {LazyGame ? (
               <Suspense fallback={<LoadingPanel />}>
                 <LazyGame />
@@ -46,7 +57,10 @@ export function GameShell() {
 function LoadingPanel() {
   return (
     <div className="flex h-[440px] items-center justify-center rounded-2xl border border-hairline bg-panel sm:h-[560px]">
-      <span className="font-mono text-xs uppercase tracking-mono text-faint">Loading…</span>
+      <div className="bc-loader">
+        <div className="bc-loader-ring" aria-hidden />
+        <span className="bc-loader-label">Loading game…</span>
+      </div>
     </div>
   );
 }

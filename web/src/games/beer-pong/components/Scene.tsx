@@ -5,23 +5,41 @@ import type { BeerPongGame, Cup } from "../domain/BeerPongGame";
 import { CUP, TABLE, THROW, palette } from "../config";
 import { clamp, lerp } from "@/shared/math";
 
-export function Scene({ game, cups }: { game: BeerPongGame; cups: Cup[] }) {
+export function Scene({
+  game,
+  cups,
+  simulate = true,
+  aimable = true,
+  onFrame,
+}: {
+  game: BeerPongGame;
+  cups: Cup[];
+  /** Advance the local simulation each frame (false when the opponent is throwing online). */
+  simulate?: boolean;
+  /** Take aim from the pointer + show the target ring (false on the opponent's turn). */
+  aimable?: boolean;
+  /** Called every frame after sync (online: stream ball/cup state while in flight). */
+  onFrame?: () => void;
+}) {
   const ball = useRef<THREE.Mesh>(null);
   const target = useRef<THREE.Mesh>(null);
   const { pointer, camera } = useThree();
 
   useFrame((_, delta) => {
-    game.aimYaw = clamp(pointer.x, -1, 1) * THROW.maxYaw;
-    game.aimPower = lerp(THROW.basePower, THROW.maxPower, clamp((pointer.y + 1) / 2, 0, 1));
-    game.update(Math.min(delta, 1 / 30));
+    if (aimable) {
+      game.aimYaw = clamp(pointer.x, -1, 1) * THROW.maxYaw;
+      game.aimPower = lerp(THROW.basePower, THROW.maxPower, clamp((pointer.y + 1) / 2, 0, 1));
+    }
+    if (simulate) game.update(Math.min(delta, 1 / 30));
 
     ball.current?.position.set(game.pos.x, game.pos.y, game.pos.z);
     if (target.current) {
       const landing = game.predictedLanding();
       target.current.position.set(landing.x, 0.02, landing.z);
-      target.current.visible = game.phase === "aiming";
+      target.current.visible = aimable && game.phase === "aiming";
     }
     camera.lookAt(0, 0.4, -2.5);
+    onFrame?.();
   });
 
   return (

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { BasketballGame, type BasketballPhase, type BasketballStats } from "../domain/BasketballGame";
+import {
+  BasketballGame,
+  type AimStage,
+  type BasketballPhase,
+  type BasketballStats,
+} from "../domain/BasketballGame";
 import { RULES } from "../config";
 
 export function useBasketball() {
@@ -10,9 +15,10 @@ export function useBasketball() {
   const [stats, setStats] = useState<BasketballStats>({ made: 0, attempts: 0 });
   const [clock, setClock] = useState<number>(RULES.clockSeconds);
   const [phase, setPhase] = useState<BasketballPhase>("aiming");
+  const [stage, setStage] = useState<AimStage>("pitch");
 
   useEffect(() => {
-    game.setEvents({ onStats: setStats, onClock: setClock, onPhase: setPhase });
+    game.setEvents({ onStats: setStats, onClock: setClock, onPhase: setPhase, onStage: setStage });
   }, [game]);
 
   const restart = () => {
@@ -20,5 +26,5 @@ export function useBasketball() {
     setPhase("aiming");
   };
 
-  return { game, stats, clock, phase, restart };
+  return { game, stats, clock, phase, stage, restart };
 }

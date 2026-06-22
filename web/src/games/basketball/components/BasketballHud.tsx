@@ -1,15 +1,18 @@
 import { Button } from "@/shared/ui/Button";
-import type { BasketballPhase, BasketballStats } from "../domain/BasketballGame";
+import type { AimStage, BasketballPhase, BasketballStats } from "../domain/BasketballGame";
+import { stageLabel } from "./aimText";
 
 export function BasketballHud({
   stats,
   clock,
   phase,
+  stage,
   restart,
 }: {
   stats: BasketballStats;
   clock: number;
   phase: BasketballPhase;
+  stage: AimStage;
   restart: () => void;
 }) {
   return (
@@ -26,15 +29,15 @@ export function BasketballHud({
           <span className="ml-1 text-base text-faint">/ {stats.attempts}</span>
         </p>
         <p className="mt-1 text-sm text-muted">
-          {phase === "gameover" ? `Time! ${stats.made} baskets made.` : "Click to shoot."}
+          {phase === "gameover" ? `Time! ${stats.made} baskets made.` : stageLabel(stage)}
         </p>
       </div>
 
       {phase === "gameover" && <Button onClick={restart}>Play again</Button>}
 
       <p className="text-[0.72rem] leading-relaxed text-faint">
-        Move the mouse left/right to aim and up/down for power, then click to shoot. The blue ring
-        shows your range — drop it on the hoop.
+        Two presses per shot: click to lock the <b>arc</b> (the arrow swings up/down), then the
+        <b> power</b> — stop the bar on the green sweet spot to swish it.
       </p>
     </div>
   );

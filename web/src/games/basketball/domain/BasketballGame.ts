@@ -1,11 +1,16 @@
 /**
- * Headless basketball: a projectile shot against a hoop, on a shot clock.
- * Aim (yaw + power) is fed in each frame; `shoot()` launches the ball. Scoring
- * detects a descending pass through the rim. No React, no three.js.
+ * Headless basketball with a two-stage shot meter:
+ *   1. "pitch" — the arc arrow swings up/down; press to lock the elevation.
+ *   2. "power" — a bar sweeps with a sweet spot; press to lock the speed.
+ * The locked (pitch, power) become a real projectile aimed straight at the hoop;
+ * the existing flight physics (rim, backboard, floor) decide whether it drops.
+ * No React, no three.js.
  */
-import { BACKBOARD, COURT, HOOP, RULES, SHOT } from "../config";
+import { AIM, BACKBOARD, COURT, HOOP, RULES, SHOT } from "../config";
+import { clamp, lerp } from "@/shared/math";
 import { horizontalDist, integrate, vec3, type Vec3 } from "@/shared/vec3";
 
+export type AimStage = "pitch" | "power";
 export type BasketballPhase = "aiming" | "inflight" | "gameover";
 export type BasketballStats = { made: number; attempts: number };
 
@@ -13,18 +18,31 @@ type Events = {
   onStats?: (stats: BasketballStats) => void;
   onClock?: (seconds: number) => void;
   onPhase?: (phase: BasketballPhase) => void;
+  onStage?: (stage: AimStage) => void;
 };
+
+// Horizontal distance and rise from the launch point to the hoop — used to solve
+// the "sweet spot" launch speed for a given arc.
+const SHOT_DIST = Math.abs(SHOT.spawnZ - HOOP.z);
+const SHOT_RISE = HOOP.y - SHOT.spawnY;
 
 export class BasketballGame {
   pos: Vec3 = vec3(SHOT.spawnX, SHOT.spawnY, SHOT.spawnZ);
   vel: Vec3 = vec3();
 
-  aimYaw = 0; // -maxYaw..maxYaw
-  aimPower: number = SHOT.basePower; // basePower..maxPower
+  // Aim-meter state.
+  stage: AimStage = "pitch";
+  osc = 0; // 0..1 triangle wave for the active stage
+  private oscDir = 1;
+  lockedPitch: number = (AIM.pitchMin + AIM.pitchMax) / 2; // radians
+  sweetT = 0.5; // sweet-spot centre on the 0..1 power bar (set when pitch locks)
+  lastMade = false; // result of the most recent resolved shot
+  makePulse = 0; // bumped on every made basket — the renderer watches it for FX
 
   phase: BasketballPhase = "aiming";
   stats: BasketballStats = { made: 0, attempts: 0 };
   clock: number = RULES.clockSeconds;
+  clockEnabled = true; // online turn-based play disables the shot clock
 
   private started = false;
   private scoredThisShot = false;
@@ -34,49 +52,117 @@ export class BasketballGame {
 
   setEvents(events: Events): void {
     this.events = events;
+    events.onStage?.(this.stage);
   }
 
   reset(): void {
     this.stats = { made: 0, attempts: 0 };
     this.clock = RULES.clockSeconds;
     this.started = false;
+    this.resetAim();
     this.parkBall();
     this.setPhase("aiming");
     this.events.onStats?.(this.stats);
     this.events.onClock?.(this.clock);
   }
 
-  /** Where the shot would land on the floor — a ground aim marker while aiming. */
-  predictedLanding(): { x: number; z: number } {
-    const range = (this.aimPower * this.aimPower * Math.sin(2 * SHOT.pitch)) / SHOT.gravity;
-    return {
-      x: SHOT.spawnX + Math.sin(this.aimYaw) * range,
-      z: SHOT.spawnZ - Math.cos(this.aimYaw) * range,
-    };
+  /** Begin the shot clock immediately (solo uses lazy start on first shot). */
+  start(): void {
+    this.started = true;
   }
 
-  shoot(): void {
+  /** Trigger the make FX without scoring — used by online watchers on a remote make. */
+  flashMake(): void {
+    this.makePulse += 1;
+  }
+
+  // --- live aim readouts (used by the renderer) ---
+
+  /** Current arc/elevation angle (live while sweeping, else locked). */
+  get aimPitch(): number {
+    return this.stage === "pitch" ? lerp(AIM.pitchMin, AIM.pitchMax, this.osc) : this.lockedPitch;
+  }
+
+  /** Live power-bar fill (0..1) during the power stage. */
+  get powerT(): number {
+    return this.stage === "power" ? this.osc : 0;
+  }
+
+  /** Unit launch direction (straight ahead, elevated by the current arc). */
+  aimDirection(): Vec3 {
+    const pitch = this.aimPitch;
+    return vec3(0, Math.sin(pitch), -Math.cos(pitch));
+  }
+
+  /** Press: advance the meter — lock the arc, or launch on the power stage. */
+  press(): void {
     if (this.phase !== "aiming") return;
-    const cosP = Math.cos(SHOT.pitch);
-    this.vel = vec3(
-      this.aimPower * Math.sin(this.aimYaw) * cosP,
-      this.aimPower * Math.sin(SHOT.pitch),
-      -this.aimPower * Math.cos(this.aimYaw) * cosP,
-    );
+    if (this.stage === "pitch") {
+      this.lockedPitch = this.aimPitch;
+      this.sweetT = this.sweetSpotFor(this.lockedPitch);
+      this.toStage("power");
+    } else {
+      this.launch(this.lockedPitch, this.osc);
+    }
+  }
+
+  update(dt: number): void {
+    if (this.phase === "gameover") return;
+    if (this.clockEnabled) this.tickClock(dt);
+    if (this.phase === "aiming") {
+      this.parkBall();
+      this.tickAim(dt);
+    } else if (this.phase === "inflight") {
+      this.stepShot(dt);
+    }
+  }
+
+  private tickAim(dt: number): void {
+    const speed = this.stage === "pitch" ? AIM.pitchSpeed : AIM.powerSpeed;
+    this.osc += this.oscDir * speed * dt;
+    if (this.osc >= 1) {
+      this.osc = 1;
+      this.oscDir = -1;
+    } else if (this.osc <= 0) {
+      this.osc = 0;
+      this.oscDir = 1;
+    }
+  }
+
+  private toStage(stage: AimStage): void {
+    this.stage = stage;
+    this.osc = 0;
+    this.oscDir = 1;
+    this.events.onStage?.(stage);
+  }
+
+  private resetAim(): void {
+    this.toStage("pitch");
+    this.lockedPitch = (AIM.pitchMin + AIM.pitchMax) / 2;
+    this.sweetT = 0.5;
+  }
+
+  /** The launch speed that sinks the hoop for a given arc, mapped onto the bar. */
+  private sweetSpotFor(pitch: number): number {
+    const c = Math.cos(pitch);
+    const denom = 2 * c * c * (SHOT_DIST * Math.tan(pitch) - SHOT_RISE);
+    if (denom <= 0) return 1;
+    const ideal = Math.sqrt((SHOT.gravity * SHOT_DIST * SHOT_DIST) / denom);
+    return clamp((ideal - AIM.minSpeed) / (AIM.maxSpeed - AIM.minSpeed), 0, 1);
+  }
+
+  private launch(pitch: number, powerT: number): void {
+    const speed = lerp(AIM.minSpeed, AIM.maxSpeed, clamp(powerT, 0, 1));
+    // Straight ahead (no lateral velocity): the ball's X position is the aim.
+    this.vel = vec3(0, Math.sin(pitch) * speed, -Math.cos(pitch) * speed);
     this.scoredThisShot = false;
+    this.lastMade = false;
     this.shotElapsed = 0;
     this.prevY = this.pos.y;
     this.stats = { ...this.stats, attempts: this.stats.attempts + 1 };
     this.events.onStats?.(this.stats);
     this.started = true;
     this.setPhase("inflight");
-  }
-
-  update(dt: number): void {
-    if (this.phase === "gameover") return;
-    this.tickClock(dt);
-    if (this.phase === "aiming") this.parkBall();
-    else if (this.phase === "inflight") this.stepShot(dt);
   }
 
   private tickClock(dt: number): void {
@@ -117,6 +203,8 @@ export class BasketballGame {
 
   private registerMake(): void {
     this.scoredThisShot = true;
+    this.lastMade = true;
+    this.makePulse += 1;
     this.stats = { ...this.stats, made: this.stats.made + 1 };
     this.events.onStats?.(this.stats);
   }
@@ -158,6 +246,7 @@ export class BasketballGame {
 
   private endShot(): void {
     if (this.phase === "gameover") return;
+    this.resetAim();
     this.parkBall();
     this.setPhase("aiming");
   }

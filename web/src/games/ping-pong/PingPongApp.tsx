@@ -1,10 +1,34 @@
+import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Scene } from "./components/Scene";
 import { PingPongHud } from "./components/PingPongHud";
+import { OnlinePingPong } from "./components/online/OnlinePingPong";
 import { usePingPong } from "./hooks/usePingPong";
+import { ModeSelect, type ModeOption } from "@/shared/ui/ModeSelect";
+import { CpuIcon, WifiIcon } from "@/shared/ui/icons";
 
-/** The table-tennis game module's entry point (vs AI). */
+type Mode = "solo" | "online";
+
+const MODES: ModeOption<Mode>[] = [
+  { label: "vs Computer", value: "solo", icon: <CpuIcon /> },
+  { label: "Online", value: "online", icon: <WifiIcon /> },
+];
+
+/** The table-tennis game module's entry point: a toggle between AI and online play. */
 export default function PingPongApp() {
+  const [mode, setMode] = useState<Mode>("solo");
+
+  return (
+    <div className="flex flex-col gap-6">
+      <ModeSelect options={MODES} value={mode} onChange={setMode} />
+      <div key={mode} className="bc-fade">
+        {mode === "solo" ? <SoloPingPong /> : <OnlinePingPong />}
+      </div>
+    </div>
+  );
+}
+
+function SoloPingPong() {
   const pp = usePingPong();
 
   return (

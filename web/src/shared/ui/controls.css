@@ -1,0 +1,536 @@
+/* ============================================================================
+   browsercade — in-game controls
+   The interactive chrome that wraps every game: mode toggle, online lobby,
+   room-code entry, primary CTAs, and the start/reveal motion. Same neon-noir
+   cobalt language as the arcade landing. All motion is CSS.
+   ========================================================================== */
+
+/* ---- shared reveal ------------------------------------------------------- */
+
+.bc-rise {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: bc-rise 0.7s cubic-bezier(0.2, 0.7, 0.15, 1) both;
+}
+@keyframes bc-rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* keyed phase cross-fade (lobby state changes) */
+.bc-fade {
+  animation: bc-fade 0.45s cubic-bezier(0.2, 0.7, 0.15, 1) both;
+}
+@keyframes bc-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   MODE SELECT — large segmented toggle with a sliding glow thumb
+   ========================================================================== */
+
+.bc-modes {
+  --i: 0;
+  --n: 2;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  padding: 5px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(26, 32, 46, 0.7), rgba(13, 16, 22, 0.7));
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.bc-modes-thumb {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: calc(5px + var(--i) * ((100% - 10px) / var(--n)));
+  width: calc((100% - 10px) / var(--n));
+  border-radius: 12px;
+  background: linear-gradient(180deg, #3a5bff, #2348ff);
+  box-shadow:
+    0 8px 22px -10px rgba(35, 72, 255, 0.9),
+    0 0 0 1px rgba(120, 150, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: left 0.44s cubic-bezier(0.5, 1.4, 0.4, 1);
+  overflow: hidden;
+}
+/* sheen that sweeps the thumb when it lands */
+.bc-modes-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.32) 50%, transparent 62%);
+  transform: translateX(-130%);
+  animation: bc-sheen 3.6s ease-in-out infinite;
+}
+@keyframes bc-sheen {
+  0%, 70% {
+    transform: translateX(-130%);
+  }
+  88%, 100% {
+    transform: translateX(130%);
+  }
+}
+
+.bc-mode {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.72rem 0.9rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #969eab;
+  transition: color 0.32s ease, transform 0.18s ease;
+  white-space: nowrap;
+}
+.bc-mode:hover {
+  color: #ecedf2;
+}
+.bc-mode:active {
+  transform: scale(0.97);
+}
+.bc-mode[aria-selected="true"] {
+  color: #fff;
+}
+.bc-mode svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* ============================================================================
+   SEGMENTED CONTROL — compact sliding toggle (difficulty etc.)
+   ========================================================================== */
+
+.bc-seg {
+  --i: 0;
+  --n: 3;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(13, 16, 22, 0.6);
+}
+.bc-seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: calc(3px + var(--i) * ((100% - 6px) / var(--n)));
+  width: calc((100% - 6px) / var(--n));
+  border-radius: 999px;
+  background: linear-gradient(180deg, #3a5bff, #2348ff);
+  box-shadow: 0 4px 14px -6px rgba(35, 72, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: left 0.36s cubic-bezier(0.5, 1.4, 0.4, 1);
+}
+.bc-seg-opt {
+  position: relative;
+  z-index: 1;
+  padding: 0.34rem 0.6rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #969eab;
+  transition: color 0.3s ease;
+}
+.bc-seg-opt:hover { color: #ecedf2; }
+.bc-seg-opt[aria-selected="true"] { color: #fff; }
+
+/* ============================================================================
+   PRIMARY BUTTON — glowing call-to-action (Create game, Play again)
+   ========================================================================== */
+
+.bc-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.82rem 1.1rem;
+  border: 1px solid rgba(120, 150, 255, 0.45);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #3a5bff, #2348ff);
+  color: #fff;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  overflow: hidden;
+  box-shadow: 0 14px 30px -16px rgba(35, 72, 255, 0.95);
+  transition: transform 0.18s ease, box-shadow 0.3s ease, filter 0.3s ease;
+}
+.bc-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.28) 50%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 0.7s ease;
+}
+.bc-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -16px rgba(35, 72, 255, 1);
+  filter: brightness(1.06);
+}
+.bc-cta:hover::after {
+  transform: translateX(130%);
+}
+.bc-cta:active {
+  transform: translateY(0) scale(0.99);
+}
+.bc-cta svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.bc-cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.bc-cta:disabled:hover {
+  transform: none;
+  filter: none;
+}
+
+/* secondary / ghost full-width button (Join, Leave, Back) */
+.bc-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.72rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #969eab;
+  cursor: pointer;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease, transform 0.15s ease;
+}
+.bc-ghost:hover {
+  color: #ecedf2;
+  border-color: rgba(120, 150, 255, 0.45);
+  background: rgba(35, 72, 255, 0.08);
+}
+.bc-ghost:active {
+  transform: scale(0.99);
+}
+.bc-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.bc-ghost:disabled:hover {
+  color: #969eab;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ============================================================================
+   LOBBY — divider, room-code entry, waiting radar, player badges
+   ========================================================================== */
+
+.bc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #6b8cff;
+}
+.bc-eyebrow .bc-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6b8cff;
+  box-shadow: 0 0 8px #6b8cff;
+  animation: bc-pulse 1.8s ease-in-out infinite;
+}
+@keyframes bc-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+.bc-or {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6c7482;
+}
+.bc-or::before,
+.bc-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+/* segmented room-code entry */
+.bc-code {
+  display: flex;
+  gap: 0.5rem;
+  cursor: text;
+}
+.bc-code-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.bc-code-cell {
+  position: relative;
+  flex: 1;
+  aspect-ratio: 3 / 4;
+  max-width: 3.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 16, 22, 0.6);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ecedf2;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.18s ease;
+}
+.bc-code-cell.is-filled {
+  border-color: rgba(120, 150, 255, 0.5);
+  animation: bc-pop 0.28s cubic-bezier(0.5, 1.4, 0.4, 1);
+}
+@keyframes bc-pop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.bc-code-cell.is-active {
+  border-color: #6b8cff;
+  box-shadow: 0 0 0 3px rgba(107, 140, 255, 0.18), 0 0 18px -6px rgba(107, 140, 255, 0.8);
+}
+/* blinking caret in the active cell */
+.bc-code-cell.is-active::after {
+  content: "";
+  width: 2px;
+  height: 1.4rem;
+  background: #6b8cff;
+  animation: bc-caret 1.05s steps(1) infinite;
+}
+@keyframes bc-caret {
+  50% { opacity: 0; }
+}
+
+/* big room code (waiting state) + copy */
+.bc-roomcode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 2.2rem;
+  letter-spacing: 0.3em;
+  color: #6b8cff;
+  text-shadow: 0 0 28px rgba(107, 140, 255, 0.45);
+}
+.bc-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #969eab;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.bc-copy:hover {
+  color: #ecedf2;
+  border-color: rgba(120, 150, 255, 0.5);
+  background: rgba(35, 72, 255, 0.12);
+}
+.bc-copy:active {
+  transform: scale(0.92);
+}
+.bc-copy svg {
+  width: 14px;
+  height: 14px;
+}
+.bc-copy.is-done {
+  color: #66e6a6;
+  border-color: rgba(102, 230, 166, 0.5);
+}
+
+/* waiting radar — concentric pings while we wait for a friend */
+.bc-radar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+}
+.bc-radar .bc-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(107, 140, 255, 0.55);
+  animation: bc-ping 2.1s cubic-bezier(0.2, 0.7, 0.15, 1) infinite;
+}
+.bc-radar .bc-ping:nth-child(2) { animation-delay: 0.7s; }
+.bc-radar .bc-ping:nth-child(3) { animation-delay: 1.4s; }
+.bc-radar .bc-core {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #6b8cff;
+  box-shadow: 0 0 16px #6b8cff;
+}
+@keyframes bc-ping {
+  0% { transform: scale(0.25); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* player versus badges (in-game) */
+.bc-versus {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.bc-seat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #969eab;
+}
+.bc-seat .bc-seat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.bc-seat.is-you {
+  color: #ecedf2;
+  border-color: rgba(120, 150, 255, 0.5);
+  background: rgba(35, 72, 255, 0.1);
+}
+.bc-vs {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  color: #6c7482;
+}
+.bc-roomchip {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  color: #6c7482;
+}
+.bc-roomchip b {
+  color: #6b8cff;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   GAME START — animated loader (lazy module fetch)
+   ========================================================================== */
+
+.bc-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.bc-loader-ring {
+  position: relative;
+  width: 46px;
+  height: 46px;
+}
+.bc-loader-ring::before,
+.bc-loader-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+.bc-loader-ring::before {
+  border-top-color: #6b8cff;
+  border-right-color: rgba(107, 140, 255, 0.3);
+  animation: bc-spin 0.9s linear infinite;
+}
+.bc-loader-ring::after {
+  inset: 9px;
+  border-bottom-color: rgba(86, 224, 255, 0.7);
+  animation: bc-spin 1.4s linear infinite reverse;
+}
+@keyframes bc-spin {
+  to { transform: rotate(360deg); }
+}
+.bc-loader-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6c7482;
+}
+
+/* ---- reduced motion ------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .bc-rise,
+  .bc-fade { animation-duration: 0.001s; }
+  .bc-modes-thumb::after,
+  .bc-cta::after,
+  .bc-live,
+  .bc-ping,
+  .bc-loader-ring::before,
+  .bc-loader-ring::after,
+  .bc-code-cell.is-active::after { animation: none !important; }
+  .bc-modes-thumb { transition-duration: 0.12s; }
+}

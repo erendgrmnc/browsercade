@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { ChessGame } from "./components/ChessGame";
 import { OnlineChessGame } from "./components/online/OnlineChessGame";
-import { SegmentedControl } from "@/shared/ui/SegmentedControl";
+import { ModeSelect, type ModeOption } from "@/shared/ui/ModeSelect";
+import { CpuIcon, WifiIcon } from "@/shared/ui/icons";
 
 type Mode = "ai" | "online";
 
-const MODES: { label: string; value: Mode }[] = [
-  { label: "vs Computer", value: "ai" },
-  { label: "Online", value: "online" },
+const MODES: ModeOption<Mode>[] = [
+  { label: "vs Computer", value: "ai", icon: <CpuIcon /> },
+  { label: "Online", value: "online", icon: <WifiIcon /> },
 ];
 
 /** The chess game module's entry point: a toggle between AI and online play. */
@@ -16,8 +17,10 @@ export default function ChessApp() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SegmentedControl options={MODES} value={mode} onChange={setMode} />
-      {mode === "ai" ? <ChessGame /> : <OnlineChessGame />}
+      <ModeSelect options={MODES} value={mode} onChange={setMode} />
+      <div key={mode} className="bc-fade">
+        {mode === "ai" ? <ChessGame /> : <OnlineChessGame />}
+      </div>
     </div>
   );
 }

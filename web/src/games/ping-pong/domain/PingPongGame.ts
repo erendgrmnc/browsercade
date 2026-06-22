@@ -38,6 +38,11 @@ export class PingPongGame {
 
   aiX = 0;
 
+  // Online (host-authoritative): the far paddle is driven by the remote guest
+  // instead of the AI, and the guest triggers their own serve.
+  online = false;
+  aiTargetX = 0; // guest's desired far-paddle X (online)
+
   score: Score = { player: 0, ai: 0 };
   phase: Phase = "serving";
   difficulty = 0.6;
@@ -103,6 +108,11 @@ export class PingPongGame {
   /** Pointer left the canvas — kept for the App wiring; no charge to abandon. */
   cancelCharge(): void {}
 
+  /** Online: the remote opponent (far paddle) triggers their serve. */
+  requestAiServe(): void {
+    if (this.online && this.phase === "serving" && this.server === "ai") this.serve("ai");
+  }
+
   update(dt: number): void {
     if (this.phase === "gameover") return;
     this.movePaddles(dt);
@@ -136,9 +146,13 @@ export class PingPongGame {
     }
 
     const limit = TABLE.halfWidth + 0.2;
-    const target = this.ai.targetX(this.pos.x, this.vel.z, this.aiX, this.difficulty);
-    const speed = lerp(PADDLE.aiSpeedEasy, PADDLE.aiSpeedHard, this.difficulty);
-    this.aiX = approach(this.aiX, clamp(target, -limit, limit), speed * dt);
+    if (this.online) {
+      this.aiX = clamp(this.aiTargetX, -limit, limit); // remote guest drives the far paddle
+    } else {
+      const target = this.ai.targetX(this.pos.x, this.vel.z, this.aiX, this.difficulty);
+      const speed = lerp(PADDLE.aiSpeedEasy, PADDLE.aiSpeedHard, this.difficulty);
+      this.aiX = approach(this.aiX, clamp(target, -limit, limit), speed * dt);
+    }
   }
 
   private stepServing(dt: number): void {
@@ -147,6 +161,7 @@ export class PingPongGame {
       return;
     }
     this.pos.x = this.aiX;
+    if (this.online) return; // online: the guest triggers their serve via requestAiServe
     this.timer -= dt;
     if (this.timer <= 0) this.serve("ai");
   }
@@ -286,6 +301,9 @@ export class PingPongGame {
     if (side === "player") {
       power = Math.max(SWING.serveMinPower, this.powerFromForward(this.servePeakForward));
       targetX = clamp((this.playerX / PADDLE.xRange) * TABLE.halfWidth * 0.55, -TABLE.halfWidth * 0.6, TABLE.halfWidth * 0.6);
+    } else if (this.online) {
+      power = 0.5; // remote serve: steady pace, aimed from the guest's paddle position
+      targetX = clamp((this.aiX / PADDLE.xRange) * TABLE.halfWidth * 0.55, -TABLE.halfWidth * 0.6, TABLE.halfWidth * 0.6);
     } else {
       power = lerp(0.3, 0.6, this.difficulty);
       targetX = (rand() - 0.5) * TABLE.halfWidth * 0.8;
@@ -316,11 +334,21 @@ export class PingPongGame {
     this.bouncesOnReceiver = 0;
   }
 
-  /** AI return — aimed at the player's court. */
+  /** Far-side return — AI-aimed offline, or aimed from the guest's paddle online. */
   private aiStroke(): void {
-    const power = lerp(0.25, 0.85, this.difficulty);
-    const targetX = clamp(-this.playerX * 0.5 + (rand() - 0.5) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.8, TABLE.halfWidth * 0.8);
-    this.launch("ai", targetX, rand(), power);
+    let power: number;
+    let targetX: number;
+    let depthT: number;
+    if (this.online) {
+      power = 0.6;
+      targetX = clamp((this.aiX / PADDLE.xRange) * TABLE.halfWidth * SHOT.aimSideFrac, -TABLE.halfWidth * 0.85, TABLE.halfWidth * 0.85);
+      depthT = 0.55;
+    } else {
+      power = lerp(0.25, 0.85, this.difficulty);
+      targetX = clamp(-this.playerX * 0.5 + (rand() - 0.5) * TABLE.halfWidth * 0.6, -TABLE.halfWidth * 0.8, TABLE.halfWidth * 0.8);
+      depthT = rand();
+    }
+    this.launch("ai", targetX, depthT, power);
     this.pos.z = PADDLE.aiZ + 0.02;
   }
 

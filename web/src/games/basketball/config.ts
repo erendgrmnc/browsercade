@@ -17,15 +17,41 @@ export const SHOT = {
   restitution: 0.55,
 } as const;
 
-export const RULES = { clockSeconds: 60, resetAfter: 4.5 } as const;
+/**
+ * The three-stage shot meter. The player presses once per stage:
+ *   1. yaw   — a left/right sweep; lock the horizontal aim (centre = straight on)
+ *   2. pitch — the arc arrow swings up/down; lock the launch elevation
+ *   3. power — a bar sweeps 0..1 with a "sweet spot"; lock the launch speed
+ * The sweet spot is the speed that sinks the locked arc (solved from physics),
+ * so nailing all three swishes; the real projectile decides made/missed.
+ */
+export const AIM = {
+  // Stage 1 — the arc arrow swings up/down; press to lock the elevation.
+  pitchMin: 0.74, // lowest arc (radians)
+  pitchMax: 1.16, // highest arc (radians)
+  pitchSpeed: 0.9, // full sweeps per second (triangle wave)
+  // Stage 2 — the power bar sweeps with a sweet spot.
+  powerSpeed: 1.4,
+  minSpeed: 7.5, // launch speed at power = 0
+  maxSpeed: 13.0, // launch speed at power = 1
+  sweetHalf: 0.055, // sweet-spot half-width on the 0..1 power bar
+  barHeight: 1.7, // world height of the on-court power bar
+} as const;
+
+export const RULES = { clockSeconds: 60, resetAfter: 4.5, winBaskets: 7 } as const;
 
 export const palette = {
-  floor: "#0d1016",
-  court: "#173a55",
-  line: "#cfe0ee",
+  floor: "#0b0e14",
+  court: "#14324a",
+  paint: "#1c4f72",
+  line: "#dce8f2",
   ball: "#e8732a",
-  rim: "#e2483b",
+  ballLine: "#7a2f12",
+  rim: "#ef6a2e",
   board: "#eef2f6",
-  net: "#cfd6dd",
-  target: "#2348ff",
+  net: "#e6ebf0",
+  target: "#3b6bff",
+  arrow: "#56e0ff",
+  sweet: "#3ad17a",
+  power: "#ff9d36",
 } as const;

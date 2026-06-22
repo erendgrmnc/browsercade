@@ -5,13 +5,14 @@ import { PoolHud } from "./components/PoolHud";
 import { OnlinePool } from "./components/online/OnlinePool";
 import { usePool } from "./hooks/usePool";
 import { CAMERA } from "./config";
-import { SegmentedControl } from "@/shared/ui/SegmentedControl";
+import { ModeSelect, type ModeOption } from "@/shared/ui/ModeSelect";
+import { UserIcon, WifiIcon } from "@/shared/ui/icons";
 
 type Mode = "solo" | "online";
 
-const MODES: { label: string; value: Mode }[] = [
-  { label: "Solo", value: "solo" },
-  { label: "Online", value: "online" },
+const MODES: ModeOption<Mode>[] = [
+  { label: "Solo", value: "solo", icon: <UserIcon /> },
+  { label: "Online", value: "online", icon: <WifiIcon /> },
 ];
 
 /** The pool game module's entry point: a toggle between solo and online play. */
@@ -20,8 +21,10 @@ export default function PoolApp() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SegmentedControl options={MODES} value={mode} onChange={setMode} />
-      {mode === "solo" ? <SoloPool /> : <OnlinePool />}
+      <ModeSelect options={MODES} value={mode} onChange={setMode} />
+      <div key={mode} className="bc-fade">
+        {mode === "solo" ? <SoloPool /> : <OnlinePool />}
+      </div>
     </div>
   );
 }
